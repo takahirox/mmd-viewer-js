@@ -79,6 +79,10 @@ var __models = [
 ];
 
 var __motions = [
+  {name: 'Toki No Kakera',
+   url:  [__motionBaseURL + '/tokino_kakera.vmd',
+          __motionBaseURL + '/tokino_kakera_cam.vmd'],
+   eye:  [0, 10, -22]},
   {name: 'Wavefile',
    url:  [__motionBaseURL + '/wavefile_v2.vmd'],
    eye:  [0, 10, -22],
@@ -655,6 +659,7 @@ var __startVideoGeneration = function(output) {
   var a = document.createElement('a');
   a.innerText = 'video';
   a.href = url;
+  a.target = '_blank';
   a.style.marginLeft = '10px';  // TODO: temporal
 
   s.appendChild(a);
@@ -844,18 +849,26 @@ Thanks to
 <ul>
 <li>MMD
  <ul>
-   <li>Miku Miku Dance: <a href="http://www.geocities.jp/higuchuu4/">http://www.geocities.jp/higuchuu4/</a></li>
+   <li><a href="http://www.geocities.jp/higuchuu4/">Miku Miku Dance</a></li>
  </ul> 
 </li>
 <li>Models
  <ul>
-   <li>Miku and other vocaloids: <a href="http://www.geocities.jp/higuchuu4/">http://www.geocities.jp/higuchuu4/</a></li>
-   <li>Miku (low poly): <a href="http://www.geocities.jp/neko_terashima/MMD/index.html">http://www.geocities.jp/neko_terashima/MMD/index.html</a></li>
+   <li><a href="http://www.geocities.jp/higuchuu4/">Miku and other vocaloids</a></li>
+   <li><a href="http://www.geocities.jp/neko_terashima/MMD/index.html">Miku (low poly)</a></li>
  </ul>
 </li>
 <li>Motions
  <ul>
-  <li>Wavefile: <a href="http://www.nicovideo.jp/watch/sm13147122">http://www.nicovideo.jp/watch/sm13147122</a></li>
+  <li><a href="http://www.nicovideo.jp/watch/sm13147122">Wavefile</a></li>
+  <li><a href="http://www.nicovideo.jp/watch/sm13658706">Toki No Kakera</a></li>
+ </ul>
+</li>
+<li>Libraries
+ <ul>
+  <li><a href="https://github.com/kripken/ammo.js/">Ammo.js</a></li>
+  <li><a href="https://github.com/antimatter15/whammy/">Whammy.js</a></li>
+  <li><a href="https://github.com/toji/gl-matrix/">glMatrix.js</a></li>
  </ul>
 </li>
 </ul>
