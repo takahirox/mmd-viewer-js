@@ -5,3 +5,4 @@ Note that I've changed some files for my MMD viewer to handle correctly.
 - renamed Japanese filename to English filename
 - converted *.tga files to *.png files
 - change image file size from non-power-of-2 to power-of-2
+- added toon[00-10].bmp files into each directory from MMD Data directory
