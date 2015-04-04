@@ -1,0 +1,863 @@
+<html>
+<head>
+<meta carset="utf-8">
+<title>MMD Viewer with WebGL</title>
+<script type="text/javascript" src="lib/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="lib/ammo.js"></script>
+<script type="text/javascript" src="lib/whammy.js"></script>
+<script type="text/javascript" src="src/Inherit.js"></script>
+<script type="text/javascript" src="src/WebGL.js"></script>
+<script type="text/javascript" src="src/Utility.js"></script>
+<script type="text/javascript" src="src/Pmd.js"></script>
+<script type="text/javascript" src="src/Vmd.js"></script>
+<script type="text/javascript" src="src/PmdView.js"></script>
+<script type="text/javascript" src="src/Physics.js"></script>
+<script type="text/javascript" src="src/FileParser.js"></script>
+<script type="text/javascript" src="src/PmdFileParser.js"></script>
+<script type="text/javascript" src="src/VmdFileParser.js"></script>
+<script type="text/javascript">
+
+// configurations
+var __modelBaseURL = './model';
+var __motionBaseURL = './vmd';
+
+var __models = [
+  {name: 'Kaito',
+   url:  __modelBaseURL + '/default/kaito.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Haku',
+   url:  __modelBaseURL + '/default/haku.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'MEIKO',
+   url:  __modelBaseURL + '/default/MEIKO.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Meiko (Sakine)',
+   url:  __modelBaseURL + '/default/meiko_sakine.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Miku',
+   url:  __modelBaseURL + '/default/miku.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Miku (Metal)',
+   url:  __modelBaseURL + '/default/miku_m.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Miku (v2)',
+   url:  __modelBaseURL + '/default/miku_v2.pmd',
+   eye:  [0, 10, -22],
+   selected: true},
+  {name: 'Neru',
+   url:  __modelBaseURL + '/default/neru.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Ren',
+   url:  __modelBaseURL + '/default/ren.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Rin',
+   url:  __modelBaseURL + '/default/rin.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Rin (act2)',
+   url:  __modelBaseURL + '/default/rin_act2.pmd',
+   eye:  [0, 10, -22]},
+/*
+  {name: 'Miku (light)',
+   url:  __modelBaseURL + '/low_miku/miku.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Marisa (light)',
+   url:  __modelBaseURL + '/low_marisa/marisa.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Reimu (light)',
+   url:  __modelBaseURL + '/low_reimu/reimu.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Alice(heavy)',
+   url:  __modelBaseURL + '/alice/alice.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Marisa (heavy)',
+   url:  __modelBaseURL + '/marisa/marisa.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Miku (heavy)',
+   url:  __modelBaseURL + '/miku/miku.pmd',
+   eye:  [0, 10, -22]},
+*/
+];
+
+var __motions = [
+  {name: 'Wavefile',
+   url:  [__motionBaseURL + '/wavefile_v2.vmd'],
+   eye:  [0, 10, -22],
+   selected: true},
+/*
+  {name: 'Luka Luka Night fever',
+   url:  [__motionBaseURL + '/nightfever.vmd'],
+   eye:  [0, 10, -22]},
+  {name: 'Melt',
+   url:  [__motionBaseURL + '/melt.vmd',
+          __motionBaseURL + '/melt_camera.vmd'],
+   eye:  [0, 10, -22]},
+  {name: 'Senbon Zakura',
+   url:  [__motionBaseURL + '/senbonzakura.vmd',
+          __motionBaseURL + '/senbonzakura_camera.vmd'],
+   eye:  [0, 10, -22]},
+  {name: 'Sweet Magic',
+   url:  [__motionBaseURL + '/sweetmagic-left.vmd',
+          __motionBaseURL + '/sweetmagic-lip.vmd'],
+   eye:  [-10, 10, -22]},
+*/
+];
+
+
+var __physicses = [
+  {name: 'Physics OFF',
+   value: PMDView._PHYSICS_OFF},
+  {name: 'Physics ON',
+   value: PMDView._PHYSICS_ON,
+   selected: true},
+/*
+  {name: 'Physics ON (workers)',
+   value: PMDView._PHYSICS_WORKERS_ON},
+*/
+];
+
+
+var __iks = [
+  {name: 'IK OFF',
+   value: PMDView._IK_OFF},
+  {name: 'IK ON',
+   value: PMDView._IK_ON,
+   selected: true},
+];
+
+
+var __morphs = [
+  {name: 'MORPHING OFF',
+   value: PMDView._MORPH_OFF},
+  {name: 'MORPHING ON',
+   value: PMDView._MORPH_ON,
+   selected: true},
+];
+
+
+var __skinnings = [
+  {name: 'CPU Skinning',
+   value: PMDView._SKINNING_CPU},
+  {name: 'GPU Skinning',
+   value: PMDView._SKINNING_GPU},
+  {name: 'CPU+GPU Skinning',
+   value: PMDView._SKINNING_CPU_AND_GPU,
+   selected: true},
+];
+
+
+var __runTypes = [
+  {name: 'Frame Oriented',
+   value: PMDView._RUN_FRAME_ORIENTED,
+   selected: true},
+  {name: 'Real Time Oriented',
+   value: PMDView._RUN_REALTIME_ORIENTED},
+];
+
+
+var __lightings = [
+  {name: 'Light OFF',
+   value: PMDView._LIGHTING_OFF},
+  {name: 'Light ON',
+   value: PMDView._LIGHTING_ON},
+  {name: 'Light ON w/ toon',
+   value: PMDView._LIGHTING_ON_WITH_TOON,
+   selected: true},
+];
+
+
+// for console debug
+// TODO: but some of them are used for work
+//       they should be used only for console debug
+var __pfp;
+var __pmd;
+var __pmdView;
+var __vfp;
+var __vmd;
+
+
+// for fps calculation
+var __oldTime;
+var __count = 0;
+var __fps_span = 60;
+
+
+// for dom operation
+var __loadModelButton;
+var __loadMotionButton;
+var __videoGenerationCheckbox;
+var __modelSelect;
+var __motionSelect;
+var __physicsSelect;
+var __ikSelect;
+var __morphSelect;
+var __runTypeSelect;
+var __skinningSelect;
+var __lightingSelect;
+var __lightColorRange;
+var __lightColorSpan;
+
+
+// for work 
+var __pmdFileLoaded = false;
+var __vmdFileLoaded = false;
+var __worker = null;
+var __selectedModel;
+var __selectedMotion;
+var __selectedPhysics;
+var __selectedSkinning;
+var __selectedLighting;
+var __useWorkers = false;
+var __videoEncoder = null;
+
+
+var __putStatus = function(str) {
+  var area = document.getElementById('statusArea');
+  area.appendChild(document.createTextNode(str + '\n'));
+  area.scrollTop = area.scrollHeight ;
+};
+
+
+var __initState = function() {
+  __loadModelButton.disabled         = false;
+  __loadMotionButton.disabled        = true;
+  __videoGenerationCheckbox.disabled = false;
+  __physicsSelect.disabled           = false;
+  __ikSelect.disabled                = false;
+  __morphSelect.disabled             = false;
+  __runTypeSelect.disabled           = false;
+  __skinningSelect.disabled          = false;
+  __lightingSelect.disabled          = false;
+  __lightColorRange.disabled         = false;
+  __videoGenerationCheckboxState();
+};
+
+
+var __loadingFileState = function() {
+  __loadModelButton.disabled         = true;
+  __loadMotionButton.disabled        = true;
+  __videoGenerationCheckbox.disabled = true;
+  __physicsSelect.disabled           = true;
+  __ikSelect.disabled                = true;
+  __morphSelect.disabled             = true;
+  __runTypeSelect.disabled           = true;
+  __skinningSelect.disabled          = true;
+  __lightingSelect.disabled          = true;
+  __lightColorRange.disabled         = true;
+};
+
+
+var __pmdFileLoadedState = function() {
+  __loadModelButton.disabled         = true;
+  __loadMotionButton.disabled        = false;
+  __videoGenerationCheckbox.disabled = false;
+  __physicsSelect.disabled           = false;
+  __ikSelect.disabled                = false;
+  __morphSelect.disabled             = false;
+  __runTypeSelect.disabled           = false;
+  __skinningSelect.disabled          = true;
+  __lightingSelect.disabled          = false;
+  __lightColorRange.disabled         = false;
+  __videoGenerationCheckboxState();
+};
+
+
+var __vmdFileLoadedState = function() {
+  __loadModelButton.disabled         = true;
+  __loadMotionButton.disabled        = true;
+  __videoGenerationCheckbox.disabled = true;
+  __physicsSelect.disabled           = false;
+  __ikSelect.disabled                = false;
+  __morphSelect.disabled             = false;
+  __runTypeSelect.disabled           = false;
+  __skinningSelect.disabled          = true;
+  __lightingSelect.disabled          = false;
+  __lightColorRange.disabled         = false;
+  __videoGenerationCheckboxState();
+};
+
+
+var __videoGenerationCheckboxState = function() {
+  if(__videoGenerationCheckbox.checked) {
+    __runTypeSelect.options[0].selected = true;
+    __runTypeSelect.options[1].selected = false;
+    __runTypeSelect.disabled = true;
+  } else {
+    __runTypeSelect.disabled = false;
+  }
+};
+
+
+var __init = function() {
+  __loadModelButton = document.getElementById('loadModelButton');
+  __loadMotionButton = document.getElementById('loadMotionButton');
+  __modelSelect = document.getElementById('modelSelect');
+  __motionSelect = document.getElementById('motionSelect');
+  __videoGenerationCheckbox =
+                   document.getElementById('videoGenerationCheckbox');
+  __physicsCheckbox = document.getElementById('physicsCheckbox');
+  __physicsSelect = document.getElementById('physicsSelect');
+  __ikSelect = document.getElementById('ikSelect');
+  __morphSelect = document.getElementById('morphSelect');
+  __runTypeSelect = document.getElementById('runTypeSelect');
+  __skinningSelect = document.getElementById('skinningSelect');
+  __lightingSelect = document.getElementById('lightingSelect');
+  __lightColorRange = document.getElementById('lightColorRange');
+  __lightColorSpan = document.getElementById('lightColorSpan');
+
+  __updateLightColorSpan();
+
+  __initSelect(__modelSelect, __models);
+  __initSelect(__motionSelect, __motions);
+  __initSelect(__physicsSelect, __physicses);
+  __initSelect(__ikSelect, __iks);
+  __initSelect(__morphSelect, __morphs);
+  __initSelect(__runTypeSelect, __runTypes);
+  __initSelect(__skinningSelect, __skinnings);
+  __initSelect(__lightingSelect, __lightings);
+
+  __putStatus('select model and click load model button.');
+  __initState();
+};
+
+
+var __initSelect = function(s, options) {
+  for(var i = 0; i < options.length; i++) {
+    var o = document.createElement('option');
+    o.selected = (options[i].selected) ? true : false;
+    o.value = i;
+    o.innerText = options[i].name;
+    s.appendChild(o);
+  }
+};
+
+
+var __loadModelButtonClicked = function() {
+  __loadingFileState();
+
+  var index = parseInt(__modelSelect.value);
+  __selectedModel = __models[index];
+
+  var modelURL = __selectedModel.url;
+
+  var request = new XMLHttpRequest();
+  request.responseType = 'arraybuffer';
+  request.onload = function() {
+    __startPMDFileParse(request.response);
+  };
+  request.onerror = function(error) {
+    var str = '';
+    for(var key in error) {
+      str += key + '=' + error[key] + '\n';
+    }
+    __putStatus(str);
+    __initState();
+  };
+  request.open('GET', modelURL, true);
+  request.send(null);
+  __putStatus('loading PMD file...');
+};
+
+
+var __startPMDFileParse = function(buffer) {
+  __putStatus('parsing PMD file...');
+  // Note: async call to update status area now.
+  requestAnimationFrame(function(){__analyzePMD(buffer);});
+};
+
+
+var __analyzePMD = function(buffer) {
+  var pfp = new PMDFileParser(buffer);
+  __pfp = pfp; // for console debug.
+
+  if(! pfp.valid()) {
+    __putStatus('this file seems not a PMD file...');
+    __initState();
+    return;
+  }
+
+  if(__useWorkers) {
+    var worker = new Worker('workers/physics.js');
+    __worker = worker; // TODO: temporal
+    // send a copy
+    worker.postMessage(buffer);
+  }
+
+  var pmd = pfp.parse();
+  __pmd = pmd; // for console debug.
+
+  pmd.setup();
+
+  __loadImages(pmd);
+};
+
+
+var __loadImages = function(pmd) {
+  var url = __selectedModel.url;
+  var imageBaseURL = url.substring(0, url.lastIndexOf('/'));
+  pmd.loadImages(imageBaseURL, __imagesLoaded);
+  __putStatus('loading images...');
+};
+
+
+var __imagesLoaded = function(pmd) {
+  __putStatus('PMD is ready.');
+  __putStatus('select motion and click load motion button.');
+  __pmdFileLoadedState();
+  __pmdFileLoaded = true;
+
+  var canvas = document.getElementById('mainCanvas');
+  var layer = new Layer(canvas);
+
+  pmdView = new PMDView(layer, pmd, __worker); // TODO: temporal
+  __pmdView = pmdView; // for console debug.
+                       // TODO: __pmdView has been used for work as well
+
+  __setPhysicsType(pmdView);
+  __setIKType(pmdView);
+  __setMorphType(pmdView);
+  __setRunType(pmdView);
+  __setSkinningType(pmdView);
+  __setLightingType(pmdView);
+  __setLightColor(pmdView);
+
+  pmdView.setup();
+  pmdView.setEye(__selectedModel.eye);
+
+  pmdView.draw();
+  __runStep(pmdView);
+};
+
+
+var __loadMotionButtonClicked = function() {
+  __loadingFileState();
+
+  var index = parseInt(__motionSelect.value);
+  __selectedMotion = __motions[index];
+
+  var motionURLs = __selectedMotion.url;
+
+  __loadVMDFiles(motionURLs, 0, []);
+};
+
+
+// TODO: load in parallel if file# become many.
+var __loadVMDFiles = function(urls, index, buffers) {
+  var url = urls[index];
+  var request = new XMLHttpRequest();
+  request.responseType = 'arraybuffer';
+  request.onload = function() {
+    buffers.push(request.response);
+    if(index+1 >= urls.length)
+      __startVMDFilesParse(buffers);
+    else
+      __loadVMDFiles(urls, index+1, buffers);
+  };
+  request.onerror = function(error) {
+    var str = '';
+    for(var key in error) {
+      str += key + '=' + error[key] + '\n';
+    }
+    __putStatus(str);
+    __pmdFileLoadedState();
+  };
+  request.open('GET', url, true);
+  request.send(null);
+  __putStatus('loading VMD file ' + (index+1) + ' ...');
+};
+
+
+var __startVMDFilesParse = function(buffers) {
+  __putStatus('parsing VMD files...');
+  // Note: async call to update status area now.
+  requestAnimationFrame(function(){__analyzeVMD(buffers);});
+};
+
+
+var __analyzeVMD = function(buffers) {
+  var vmds = [];
+  var vfps = [];
+  for(var i = 0; i < buffers.length; i++) {
+    vfps[i] = new VMDFileParser(buffers[i]);
+
+    if(! vfps[i].valid()) {
+      __putStatus('file ' + (i+1) + ' seems not a VMD file...');
+      __pmdFileLoadedState();
+      return;
+    }
+
+    vmds[i] = vfps[i].parse();
+  }
+
+  var vmd = vmds[0];
+  var vfp = vfps[0];
+  __vfp = vfps[0]; // for console debug.
+  __vmd = vmds[0]; // for console debug.
+
+  for(var i = 1; i < buffers.length; i++) {
+    vmd.merge(vmds[i]);
+  }
+
+  // TODO: has accessed __pmdView
+  __pmdView.setVMD(vmd);
+  __pmdView.setEye(__selectedMotion.eye);
+
+  __vmdFileLoaded = true;
+  __startDance();
+};
+
+
+var __startDance = function(pmdView) {
+  __putStatus('VMD is ready.');
+  __putStatus('starts dance.');
+
+  __pmdView.startDance();
+
+  if(__videoGenerationCheckbox.checked) {
+    __videoEncoder = new Whammy.Video(60);
+
+    var s = document.getElementById('videoSpan');
+    var b = document.createElement('button');
+    b.innerText = 'output video';
+    b.onclick = function() {__generateVideo();}
+    s.appendChild(b);
+  }
+
+  __vmdFileLoadedState();
+};
+
+
+var __physicsSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setPhysicsType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
+var __ikSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setIKType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
+var __morphSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setMorphType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
+var __runTypeSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setRunType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
+var __skinningSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setSkinningType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
+var __lightingSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setLightingType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
+var __lightColorRangeChanged = function() {
+  __updateLightColorSpan();
+  if(__pmdFileLoaded)
+    __setLightColor(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
+var __updateLightColorSpan = function() {
+  __lightColorSpan.innerText = __lightColorRange.value;
+};
+
+
+var __setPhysicsType = function(pmdView) {
+  var index = parseInt(__physicsSelect.value);
+  pmdView.setPhysicsType(__physicses[index].value);
+};
+
+
+var __setIKType = function(pmdView) {
+  var index = parseInt(__ikSelect.value);
+  pmdView.setIKType(__iks[index].value);
+};
+
+
+var __setMorphType = function(pmdView) {
+  var index = parseInt(__morphSelect.value);
+  pmdView.setMorphType(__morphs[index].value);
+};
+
+
+var __setRunType = function(pmdView) {
+  var index = parseInt(__runTypeSelect.value);
+  pmdView.setRunType(__runTypes[index].value);
+};
+
+
+var __setSkinningType = function(pmdView) {
+  var index = parseInt(__skinningSelect.value);
+  pmdView.setSkinningType(__skinnings[index].value);
+};
+
+
+var __setLightingType = function(pmdView) {
+  var index = parseInt(__lightingSelect.value);
+  pmdView.setLightingType(__lightings[index].value);
+};
+
+
+var __setLightColor = function(pmdView) {
+  var color = parseFloat(__lightColorRange.value);
+  pmdView.setLightColor(color);
+};
+
+
+// TODO: temporal
+var __videoGenerationCheckboxChanged = function() {
+  __videoGenerationCheckboxState();
+};
+
+
+var __generateVideo = function() {
+  if(__videoEncoder === null)
+    return;
+
+  var s = document.getElementById('videoSpan');
+  s.firstChild.disabled = true;
+  while(s.firstChild.nextSibling)
+    s.removeChild(s.firstChild.nextSibling);
+
+  __putStatus('compiling video file...');
+  // Note: async call to update status area now.
+  requestAnimationFrame(function(){__startVideoCompile();});
+};
+
+
+var __startVideoCompile = function() {
+  var output = __videoEncoder.compile();
+
+  __putStatus('creating object URL...');
+  // Note: async call to update status area now.
+  requestAnimationFrame(function(){__startVideoGeneration(output);});
+};
+
+
+var __startVideoGeneration = function(output) {
+  var url = URL.createObjectURL(output);
+
+  var s = document.getElementById('videoSpan');
+  s.firstChild.disabled = false;
+
+  var a = document.createElement('a');
+  a.innerText = 'video';
+  a.href = url;
+  a.style.marginLeft = '10px';  // TODO: temporal
+
+  s.appendChild(a);
+  __putStatus('video was generated.');
+};
+
+
+var __runStep = function(pmdView) {
+  __updateByKey(pmdView);
+  if(! __useWorkers) {
+    pmdView.update();
+    pmdView.draw();
+
+    // TODO: temporal
+    if(__videoEncoder !== null) {
+      __videoEncoder.add(pmdView.layer.canvas);
+    }
+
+    requestAnimationFrame(function() {__runStep(pmdView);});
+    __calculateFps();
+    __count++;
+  } else {
+    pmdView.draw();
+    pmdView.update();
+  }
+};
+
+
+var __updateDone = function(pmdView) {
+  requestAnimationFrame(function() {__runStep(pmdView);});
+  __calculateFps();
+  __count++;
+};
+
+
+var __calculateFps = function() {
+  if((__count % __fps_span) != 0)
+    return;
+
+  var newTime = Date.now();
+  if(__oldTime !== undefined) {
+    var fps = parseInt(1000*__fps_span / (newTime - __oldTime));
+    document.getElementById('fpsSpan').innerText = fps + 'fps';
+  }
+  __oldTime = newTime;
+};
+
+
+// TODO: temporal key handling
+var __keyMap = {
+  90: 1,
+  88: 2,
+  65: 3,
+  83: 4,
+  81: 5,
+  87: 6,
+  49: 7,
+  50: 8
+};
+
+var __keyFlags = [false, false, false, false,
+                  false, false, false, false];
+
+
+var __handleKeyDown = function(event) {
+  if(!pmdView)
+    return;
+
+  if(! __keyMap[event.keyCode])
+    return;
+
+  event.preventDefault();
+
+  __keyFlags[__keyMap[event.keyCode] - 1] = true;
+};
+
+
+var __handleKeyUp = function(event) {
+  if(!pmdView)
+    return;
+
+  if(! __keyMap[event.keyCode])
+    return;
+
+  event.preventDefault();
+
+  __keyFlags[__keyMap[event.keyCode] - 1] = false;
+};
+
+
+var __updateByKey = function(pmdView) {
+  var flag = 0;
+  if(__keyFlags[0]) {
+    pmdView.eye[0]--;
+    pmdView.center[0]--;
+    flag++;
+  }
+  if(__keyFlags[1]) {
+    pmdView.eye[0]++;
+    pmdView.center[0]++;
+    flag++;
+  }
+  if(__keyFlags[2]) {
+    pmdView.eye[1]--;
+    pmdView.center[1]--;
+    flag++;
+  }
+  if(__keyFlags[3]) {
+    pmdView.eye[1]++;
+    pmdView.center[1]++;
+    flag++;
+  }
+  if(__keyFlags[4]) {
+    pmdView.eye[2]--;
+    flag++;
+  }
+  if(__keyFlags[5]) {
+    pmdView.eye[2]++;
+    flag++;
+  }
+  if(__keyFlags[6]) {
+    pmdView.eye[0]--;
+    flag++;
+  }
+  if(__keyFlags[7]) {
+    pmdView.eye[0]++;
+    flag++;
+  }
+  return flag;
+};
+
+
+window.onkeydown = function(event) { __handleKeyDown(event); } ;
+window.onkeyup = function(event) { __handleKeyUp(event); } ;
+</script>
+</head>
+<body onload="__init()">
+
+<p>
+<a href="https://github.com/takahirox/mmd-viewer-js">source code</a>
+<a href="http://d.hatena.ne.jp/takahirox/20150329/1427600440">demo video(blog)</a>
+Twitter: <a href="https://twitter.com/superhoge">@superhoge</a>
+</p>
+
+<p>
+<button id="loadModelButton" onclick="__loadModelButtonClicked()">
+load model
+</button>
+<select id="modelSelect"></select>
+<br />
+
+<button id="loadMotionButton" onclick="__loadMotionButtonClicked()">
+load motion
+</button>
+<select id="motionSelect"></select>
+<input type="checkbox" id="videoGenerationCheckbox"
+ onchange="__videoGenerationCheckboxChanged()" />
+generate a video
+<span id="videoSpan"></span>
+</p>
+
+<p>
+<textarea id="statusArea" readonly cols="50" rows="5">
+</textarea>
+<span id="fpsSpan"></span><br/>
+</p>
+
+<p>
+<select id="physicsSelect"  onchange="__physicsSelectChanged()"></select>
+<select id="ikSelect"       onchange="__ikSelectChanged()"></select>
+<select id="morphSelect"    onchange="__morphSelectChanged()"></select>
+<select id="runTypeSelect"  onchange="__runTypeSelectChanged()"></select>
+<br />
+<select id="skinningSelect" onchange="__skinningSelectChanged()"></select>
+<select id="lightingSelect" onchange="__lightingSelectChanged()"></select>
+Light <!--Color-->Strength
+<input type="range" id="lightColorRange" min="0.0" max="2.0" step="0.1"
+ value="1.0" onchange="__lightColorRangeChanged()"/>
+<span id="lightColorSpan"></span>
+</p>
+
+<canvas id="mainCanvas" width="640" height="480"></canvas><br />
+
+<p>
+Thanks to
+</p>
+<ul>
+<li>MMD
+ <ul>
+   <li>Miku Miku Dance: <a href="http://www.geocities.jp/higuchuu4/">http://www.geocities.jp/higuchuu4/</a></li>
+ </ul> 
+</li>
+<li>Models
+ <ul>
+   <li>Miku and other vocaloids: <a href="http://www.geocities.jp/higuchuu4/">http://www.geocities.jp/higuchuu4/</a></li>
+ </ul>
+</li>
+<li>Motions
+ <ul>
+  <li>Wavefile: <a href="http://www.nicovideo.jp/watch/sm13147122">http://www.nicovideo.jp/watch/sm13147122</a></li>
+ </ul>
+</li>
+</ul>
+
+</body>
+</html>
