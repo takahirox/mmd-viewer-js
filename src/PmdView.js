@@ -2,6 +2,7 @@ function PMDView(layer, pmd, worker) {
   this.layer = layer;
   this.pmd = pmd;
   this.vmd = null;
+  this.audio = null;
 
   this.vtf = layer.generateTexture();
   this.vtfWidth = layer.calculateVTFWidth(pmd.boneCount*7);
@@ -51,7 +52,6 @@ function PMDView(layer, pmd, worker) {
 
   this.motions = [];
   this.originalMotions = {};
-  this.firstMove = false;
 
   this.posFromBone1 = [];
   this.posFromBone2 = [];
@@ -61,9 +61,11 @@ function PMDView(layer, pmd, worker) {
   this.camera.rotation = [0, 0, 0];
   this.length = 0;
   this.angle = 0;
-  this.useVMDCamera = false;
 
   this.oldDate = null;
+  this.startDate = null;
+  this.audioStart = false;
+  this.dancing = false;
 
   this.useWorkers = (worker) ? true : false;
 
@@ -83,7 +85,7 @@ function PMDView(layer, pmd, worker) {
   this.morphType = null;
   this.lightColor = null;
   this.runType = null;
-  this.dancing = false;
+  this.audioType = null;
 
   this.elapsedTime = 0.0;
 
@@ -92,6 +94,7 @@ function PMDView(layer, pmd, worker) {
   this.setIKType(this._IK_ON);
   this.setMorphType(this._MORPH_ON);
   this.setRunType(this._RUN_FRAME_ORIENTED);
+  this.setAudioType(this._AUDIO_ON);
   this.setLightColor(1.0);
 };
 
@@ -100,15 +103,16 @@ PMDView.prototype.Math = Math;
 PMDView.prototype.vec3 = vec3;
 PMDView.prototype.quat4 = quat4;
 
-PMDView.prototype._V_ITEM_SIZE = 3;
-PMDView.prototype._C_ITEM_SIZE = 2;
-PMDView.prototype._I_ITEM_SIZE = 1;
+PMDView.prototype._V_ITEM_SIZE  = 3;
+PMDView.prototype._C_ITEM_SIZE  = 2;
+PMDView.prototype._I_ITEM_SIZE  = 1;
 PMDView.prototype._BW_ITEM_SIZE = 1;
 PMDView.prototype._BI_ITEM_SIZE = 2;
 PMDView.prototype._MT_ITEM_SIZE = 3;
 PMDView.prototype._MR_ITEM_SIZE = 4;
 PMDView.prototype._VN_ITEM_SIZE = 3;
 
+PMDView.prototype._FRAME_S  = 1/60;
 PMDView.prototype._FRAME_MS = 1/60*1000;
 
 PMDView.prototype._PHYSICS_OFF        = 0;
@@ -121,8 +125,8 @@ PMDView.prototype._SKINNING_GPU         = 1;
 PMDView.prototype._SKINNING_CPU_AND_GPU = 2;
 
 // Note: these lighting parameters must correspond to vertex shader.
-PMDView.prototype._LIGHTING_OFF = 0;
-PMDView.prototype._LIGHTING_ON  = 1;
+PMDView.prototype._LIGHTING_OFF          = 0;
+PMDView.prototype._LIGHTING_ON           = 1;
 PMDView.prototype._LIGHTING_ON_WITH_TOON = 2;
 
 PMDView.prototype._IK_OFF = 0;
@@ -131,8 +135,12 @@ PMDView.prototype._IK_ON  = 1;
 PMDView.prototype._MORPH_OFF = 0;
 PMDView.prototype._MORPH_ON  = 1;
 
-PMDView.prototype._RUN_FRAME_ORIENTED = 0;
+PMDView.prototype._RUN_FRAME_ORIENTED    = 0;
 PMDView.prototype._RUN_REALTIME_ORIENTED = 1;
+PMDView.prototype._RUN_AUDIO_ORIENTED    = 2;
+
+PMDView.prototype._AUDIO_OFF = 0;
+PMDView.prototype._AUDIO_ON  = 1;
 
 PMDView._PHYSICS_OFF        = PMDView.prototype._PHYSICS_OFF;
 PMDView._PHYSICS_ON         = PMDView.prototype._PHYSICS_ON;
@@ -154,6 +162,10 @@ PMDView._MORPH_ON  = PMDView.prototype._MORPH_ON;
 
 PMDView._RUN_FRAME_ORIENTED    = PMDView.prototype._RUN_FRAME_ORIENTED;
 PMDView._RUN_REALTIME_ORIENTED = PMDView.prototype._RUN_REALTIME_ORIENTED;
+PMDView._RUN_AUDIO_ORIENTED    = PMDView.prototype._RUN_AUDIO_ORIENTED;
+
+PMDView._AUDIO_OFF = PMDView.prototype._AUDIO_OFF = 0;
+PMDView._AUDIO_ON  = PMDView.prototype._AUDIO_ON  = 1;
 
 
 PMDView.prototype.setup = function() {
@@ -192,11 +204,31 @@ PMDView.prototype.setVMD = function(vmd) {
 };
 
 
+PMDView.prototype.setAudio = function(audio, offset) {
+  this.audio = {};
+  this.audio.audio = audio;
+  this.audio.offset = offset;
+};
+
+
 PMDView.prototype.startDance = function() {
   this.vmd.setup(this.pmd);
-  this.firstMove = true;
   this.elapsedTime = 0.0;
   this.dancing = true;
+  this.oldDate = null;
+  this.startDate = Date.now();
+
+  this.frame = 0;
+  this.dframe = 0;
+  this._initMotions2();
+  this._moveBone();
+
+  if(this.useWorkers) {
+    this.worker.postMessage(JSON.stringify({cmd: 'reset',
+                                            motions: this.motions}));
+  } else {
+    this.physics.resetRigidBodies(this.motions);
+  }
 };
 
 
@@ -245,6 +277,11 @@ PMDView.prototype.setMorphType = function(type) {
 
 PMDView.prototype.setRunType = function(type) {
   this.runType = type;
+};
+
+
+PMDView.prototype.setAudioType = function(type) {
+  this.audioType = type;
 };
 
 
@@ -402,6 +439,55 @@ PMDView.prototype._initMotionArrays = function() {
 };
 
 
+/**
+ * TODO: consider the case if images aren't loaded yet.
+ */
+PMDView.prototype._initTextures = function() {
+  for(var i = 0; i < this.pmd.materialCount; i++) {
+    this.textures[i] = this.layer.generateTexture(this.pmd.images[i]);
+  }
+
+  for(var i = 0; i < this.pmd.toonTextureCount; i++) {
+    this.toonTextures[i] = this.layer.generateTexture(this.pmd.toonImages[i]);
+  }
+};
+
+
+PMDView.prototype._initMotions = function() {
+  for(var i = 0; i < this.pmd.boneCount; i++) {
+    this.motions[i] = {
+      r: this.quat4.create(),
+      p: this.vec3.create(),
+      done: false
+    };
+
+    var b = this.pmd.bones[i];
+    var a = {};
+    a.location = [0, 0, 0];
+    a.rotation = [0, 0, 0, 1];
+    this.originalMotions[b.name] = a;
+  }
+
+};
+
+
+/**
+ * TODO: temporal
+ */
+PMDView.prototype._initMotions2 = function() {
+  for(var i = 0; i < this.pmd.boneCount; i++) {
+    this.quat4.clear(this.motions[i].r);
+    this.vec3.clear(this.motions[i].p);
+    this.motions[i].done = false;
+
+    var b = this.pmd.bones[i];
+    var a = this.originalMotions[b.name];
+    this.vec3.clear(a.location);
+    this.quat4.clear(a.rotation);
+  }
+};
+
+
 PMDView.prototype._packTo4Uint8 = function(f, uint8Array, offset) {
   f = f * 1.0;
   var sign = (f < 0.0) ? 0x80 : 0x00;
@@ -471,21 +557,6 @@ PMDView.prototype._skinning = function() {
   this.layer.pourArrayBuffer(this.vBuffer, this.vArray,
                              this._V_ITEM_SIZE, this.pmd.vertexCount);
 };
-
-
-/**
- * TODO: consider the case if images aren't loaded yet.
- */
-PMDView.prototype._initTextures = function() {
-  for(var i = 0; i < this.pmd.materialCount; i++) {
-    this.textures[i] = this.layer.generateTexture(this.pmd.images[i]);
-  }
-
-  for(var i = 0; i < this.pmd.toonTextureCount; i++) {
-    this.toonTextures[i] = this.layer.generateTexture(this.pmd.toonImages[i]);
-  }
-};
-
 
 
 PMDView.prototype._pourArrays = function() {
@@ -574,72 +645,70 @@ PMDView.prototype._bindBuffers = function() {
 PMDView.prototype._draw = function(texture, pos, num) {
   var layer = this.layer;
   layer.viewport();
-  layer.perspective(this.useVMDCamera ? this.camera.angle : 60,
-                    0.1, 1000.0);
-  layer.identity();
 
-  if(this.useVMDCamera) {
-    var cameraPosition = vec3.create([0, 0, this.camera.length]);
-    vec3.rotateX(cameraPosition, this.camera.rotation[0], cameraPosition);
-    vec3.rotateY(cameraPosition, this.camera.rotation[1], cameraPosition);
-    vec3.rotateZ(cameraPosition, this.camera.rotation[2], cameraPosition);
-    vec3.add(cameraPosition, this.camera.location, cameraPosition);
-
-    var up = [0, 1, 0];
-    vec3.rotateX(up, this.camera.rotation[0], up);
-    vec3.rotateY(up, this.camera.rotation[1], up);
-    vec3.rotateZ(up, this.camera.rotation[2], up);
-
-    layer.lookAt(cameraPosition, this.camera.location, up);
-  } else {
-    layer.lookAt(this.eye, this.center, this.up);
+  var angle = 60;
+  if(this.dancing && this.vmd.getCamera().available) {
+    angle = this.vmd.getCamera().angle;
+    this.vmd.getCalculatedCameraParams(this.eye, this.center, this.up);
   }
+
+  layer.perspective(angle, 0.1, 1000.0);
+  layer.identity();
+  layer.lookAt(this.eye, this.center, this.up);
 
   layer.draw(texture,
              layer._BLEND_ALPHA, num, pos);
 };
 
 
-/**
- * just copied from MMD.js so far
- */
-vec3.rotateX = function(vec, angle, dest) {
-  var rotation = mat4.rotateX(mat4.identity(mat4.create()), angle);
-  return mat4.multiplyVec3(rotation, vec, dest);
-};
-vec3.rotateY = function(vec, angle, dest) {
-  var rotation = mat4.rotateY(mat4.identity(mat4.create()), angle);
-  return mat4.multiplyVec3(rotation, vec, dest);
-};
-vec3.rotateZ = function(vec, angle, dest) {
-  var rotation = mat4.rotateZ(mat4.identity(mat4.create()), angle);
-  return mat4.multiplyVec3(rotation, vec, dest);
-};
-
 
 /**
  * TODO: temporal
+ * TODO: optimize
  */
 PMDView.prototype._calculateDframe = function() {
   var newDate = Date.now();
   if(this.runType == this._RUN_FRAME_ORIENTED) {
     this.dframe = 1;
     this.elapsedTime += this._FRAME_MS;
-  } else {
+  } else if(this.runType == this._RUN_REALTIME_ORIENTED ||
+            ! this.dancing ||
+            this.audio === null) {
     if(this.oldDate) {
+      var prevElapsedTime = this.elapsedTime;
       var oldFrame = (this.elapsedTime / this._FRAME_MS) | 0;
       this.elapsedTime += (newDate - this.oldDate);
       var newFrame = (this.elapsedTime / this._FRAME_MS) | 0;
       var dframe = (newFrame - oldFrame);
-      if(dframe == 0) {
-        this.dframe = 1;
-        this.elapsedTime += this._FRAME_MS - (newDate - this.oldDate);
-      } else {
-        this.dframe = dframe;
+      if(dframe <= 0) {
+        newDate = this.oldDate;
+        dframe = 0;
+        this.elapsedTime = prevElapsedTime;
       }
+      this.dframe = dframe;
     } else {
-      this.dframe = 1;
-      this.elapsedTime += this._FRAME_MS;
+      this.dframe = 0;
+    }
+  } else {
+    // TODO: temporal logic
+    if(this.audioStart) {
+      newDate = this.audio.audio.currentTime * 1000 + this.startDate
+                  + this.audio.offset * this._FRAME_MS;
+    }
+    if(this.oldDate) {
+      var prevElapsedTime = this.elapsedTime;
+      var oldFrame = (this.elapsedTime / this._FRAME_MS) | 0;
+      this.elapsedTime += (newDate - this.oldDate);
+      var newFrame = (this.elapsedTime / this._FRAME_MS) | 0;
+      var dframe = (newFrame - oldFrame);
+      if(dframe <= 0) {
+        newDate = this.oldDate;
+        dframe = 0;
+        this.elapsedTime = prevElapsedTime;
+      }
+      this.dframe = dframe;
+    } else {
+      this.dframe = 0;
     }
   }
   this.oldDate = newDate;
@@ -648,9 +717,33 @@ PMDView.prototype._calculateDframe = function() {
 
 /**
  * TODO: temporal
+ * TODO: maybe better to avoid dom operation to improve the performance
+ */
+PMDView.prototype._controlAudio = function() {
+  if(! this.audio || this.audioStart ||
+     this.audioType == this._AUDIO_OFF)
+    return;
+
+  if(! this.audio.offset || this.frame >= this.audio.offset) {
+    this.audio.audio.play();
+    if(this.audio.offset < 0) {
+      this.audio.audio.currentTime = -this.audio.offset * this._FRAME_S;
+    }
+    this.audioStart = true;
+  }
+};
+
+
+/**
+ * TODO: temporal
  */
 PMDView.prototype.update = function() {
+  this._controlAudio();
+
   this._calculateDframe();
+
+  if(this.dframe == 0)
+    return;
 
   if(this.useWorkers)
     this._runPhysicsByWorker();
@@ -659,14 +752,8 @@ PMDView.prototype.update = function() {
 
   if(this.dancing) {
     this._moveBone();
-    if(this.firstMove) {
-      if(this.useWorkers)
-        this.worker.postMessage(JSON.stringify({cmd: 'reset',
-                                                motions: this.motions}));
-      else
-        this.physics.resetRigidBodies(this.motions);
-    }
-    this.firstMove = false;
+    this._moveFace();
+    this._moveLight();
   }
 
   if(! this.useWorkers && this.physicsType == this._PHYSICS_ON)
@@ -678,6 +765,9 @@ PMDView.prototype.update = function() {
  * TODO: temporal
  */
 PMDView.prototype.draw = function() {
+  if(this.dframe == 0)
+    return;
+
   this._initMotionArrays();
 
   // TODO: temporal
@@ -725,7 +815,7 @@ PMDView.prototype._runPhysics = function() {
   for(var i = 0; i < this.pmd.boneCount; i++) {
     this._getBoneMotion(i);
   }
-  if(this.runType == this._RUN_FRAME_ORIENTED || this.dframe == 1)
+  if(this.dframe == 1)
     this.physics.simulate(this.motions);
   else
     this.physics.simulateFrame(this.motions, this.dframe);
@@ -750,79 +840,20 @@ PMDView.prototype._receivedPhysicsResult = function(e) {
 };
 
 
+/**
+ * TODO: rename
+ */
 PMDView.prototype._loadFromVMD = function() {
-  this._loadMotionFromVMD();
+  this.vmd.loadMotion();
 
   if(this.morphType == this._MORPH_ON)
-    this._loadFaceFromVMD();
+    this.vmd.loadFace();
 
-  this._loadCameraFromVMD();
-  // Note: doesn't work correctly yet
-/*
-  this._loadLightFromVMD();
-*/
+  this.vmd.loadCamera();
+  this.vmd.loadLight();
 
   this.vmd.step(this.dframe);
-
   this.frame += this.dframe;
-};
-
-
-PMDView.prototype._loadMotionFromVMD = function() {
-  var originalMotions = {};
-
-  // TODO: move this logic into VMD.
-  // TODO: check the logic.
-  var keys = Object.keys(this.vmd.orderedMotions);
-  for(var i = 0; i < keys.length; i++) {
-    var key = keys[i];
-    var m = this.vmd.orderedMotions[key];
-
-    if(m.index == -1)
-      continue;
-
-    originalMotions[key] = {};
-    originalMotions[key].n = m.motions[m.index].frameNum;
-    originalMotions[key].rotation = [];
-    originalMotions[key].rotation[0] = m.motions[m.index].rotation[0];
-    originalMotions[key].rotation[1] = m.motions[m.index].rotation[1];
-    originalMotions[key].rotation[2] = m.motions[m.index].rotation[2];
-    originalMotions[key].rotation[3] = m.motions[m.index].rotation[3];
-    originalMotions[key].location = [];
-    originalMotions[key].location[0] = m.motions[m.index].location[0];
-    originalMotions[key].location[1] = m.motions[m.index].location[1];
-    originalMotions[key].location[2] = m.motions[m.index].location[2];
-
-    if(m.index+1 >= m.motions.length)
-      continue;
-
-    originalMotions[key].m = m.motions[m.index+1].frameNum;
-    originalMotions[key].rotation2 = [];
-    originalMotions[key].rotation2[0] = m.motions[m.index+1].rotation[0];
-    originalMotions[key].rotation2[1] = m.motions[m.index+1].rotation[1];
-    originalMotions[key].rotation2[2] = m.motions[m.index+1].rotation[2];
-    originalMotions[key].rotation2[3] = m.motions[m.index+1].rotation[3];
-    originalMotions[key].location2 = [];
-    originalMotions[key].location2[0] = m.motions[m.index+1].location[0];
-    originalMotions[key].location2[1] = m.motions[m.index+1].location[1];
-    originalMotions[key].location2[2] = m.motions[m.index+1].location[2];
-
-    m = originalMotions[key];
-    if(m.m === undefined || m.n == this.frame || m.n >= m.m)
-      continue;
-
-    // Note: linear interpolation so far
-    var d = m.m - m.n;
-    var d2 = this.frame - m.n;
-    var r = d2/d;
-
-    m.rotation = this._slerp(m.rotation, m.rotation2, r);
-//    this.quat4.slerp(m.rotation, m.rotation2, r, m.rotation);
-    m.location[0] = m.location2[0] * r + m.location[0] * (1-r);
-    m.location[1] = m.location2[1] * r + m.location[1] * (1-r);
-    m.location[2] = m.location2[2] * r + m.location[2] * (1-r);
-  }
-  this.originalMotions = originalMotions;
 };
 
 
@@ -830,34 +861,17 @@ PMDView.prototype._loadMotionFromVMD = function() {
  * TODO: temporal
  * TODO: any ways to avoid update all morph Buffer?
  */
-PMDView.prototype._loadFaceFromVMD = function() {
-  // TODO: move this logic into VMD.
-  // TODO: check the logic.
+PMDView.prototype._moveFace = function() {
+  if(this.morphType == this._MORPH_OFF)
+    return;
+
   var done = false;
-  var keys = Object.keys(this.vmd.orderedFaces);
-  for(var i = 0; i < keys.length; i++) {
-    var key = keys[i];
-    var f = this.vmd.orderedFaces[key];
-
-    if(f.index == -1)
-      continue;
-
-    var f2 = f.faces[f.index];
-    var f3 = f.faces[f.index+1];
-
-    var weight;
-    if(f3 !== undefined) {
-      var d = f3.frameNum - f2.frameNum;
-      var d2 = this.frame - f2.frameNum;
-      var r = d2/d;
-      weight = f3.weight * r + f2.weight * (1-r);
-    } else {
-      weight = f2.weight;
+  for(var i = 0; i < this.pmd.faceCount; i++) {
+    var f = this.vmd.getFace(this.pmd.faces[i]);
+    if(f.available) {
+      this._moveMorph(this.pmd.faces[i].id, f.weight);
+      done = true;
     }
-
-    var pmdFace = this.pmd.facesHash[f2.name];
-    this._moveMorph(pmdFace.id, weight);
-    done = true;
   }
 
   if(! done)
@@ -878,115 +892,18 @@ PMDView.prototype._loadFaceFromVMD = function() {
 };
 
 
-PMDView.prototype._loadCameraFromVMD = function() {
-  // TODO: move this logic into VMD.
-  // TODO: check the logic.
-  var ocs = this.vmd.orderedCameras;
-  var index = this.vmd.cameraIndex;
-
-  if(index == -1)
-    return;
-
-  this.useVMDCamera = true;
-
-  var c1 = ocs[index];
-  var c2 = ocs[index+1];
-
-  if(index+1 >= ocs.length
-       || c1.frameNum == this.frame
-       || c2 === undefined
-       || c2.frameNum - c1.frameNum <= 2) {
-    this.camera.location[0] = c1.location[0];
-    this.camera.location[1] = c1.location[1];
-    this.camera.location[2] = c1.location[2];
-    this.camera.rotation[0] = c1.rotation[0];
-    this.camera.rotation[1] = c1.rotation[1];
-    this.camera.rotation[2] = c1.rotation[2];
-    this.camera.length = c1.length;
-    this.camera.angle = c1.angle;
-  } else {
-    // Note: linear interpolation so far
-    var d = c2.frameNum - c1.frameNum;
-    var d2 = this.frame - c1.frameNum;
-    var r = d2/d;
-
-    this.vec3.lerp(c1.rotation, c2.rotation, r, this.camera.rotation);
-    this.camera.location[0] = c2.location[0] * r + c1.location[0] * (1-r);
-    this.camera.location[1] = c2.location[1] * r + c1.location[1] * (1-r);
-    this.camera.location[2] = c2.location[2] * r + c1.location[2] * (1-r);
-    this.camera.length = c2.length * r + c1.length * (1-r);
-    this.camera.angle = c2.angle * r + c1.angle * (1-r);
-  }
-};
-
-
-PMDView.prototype._loadLightFromVMD = function() {
-  // TODO: move this logic into VMD.
-  // TODO: check the logic.
-  var ols = this.vmd.orderedLights;
-  var index = this.vmd.lightIndex;
-
-  if(index == -1)
+/**
+ * TODO: implement correctly
+ */
+PMDView.prototype._moveLight = function() {
+  var light = this.vmd.getLight();
+  if(! light.available)
     return;
 
   this.layer.gl.uniform3fv(this.layer.shader.lightColorUniform,
-                           ols[index].light.color);
-  this.layer.lightDirection = ols[index].light.location;
+                           light.color);
+  this.layer.lightDirection = light.location;
 };
-
-
-/**
- * copied from somewhere so far
- * TODO: move this logic to general matrix class or somewhere
- */
-PMDView.prototype._slerp = function(q, r, t) {
-  // TODO: not to create.
-  var p = this.quat4.create();
-
-  var cosHalfTheta = q[0]*r[0] + q[1]*r[1] + q[2]*r[2] + q[3]*r[3];
-  if(cosHalfTheta < 0) {
-    p[0] = -r[0];
-    p[1] = -r[1];
-    p[2] = -r[2];
-    p[3] = -r[3];
-    cosHalfTheta = -cosHalfTheta;
-  } else {
-    p[0] = r[0];
-    p[1] = r[1];
-    p[2] = r[2];
-    p[3] = r[3];
-  }
-
-  if(this.Math.abs(cosHalfTheta) >= 1.0) {
-    p[0] = q[0];
-    p[1] = q[1];
-    p[2] = q[2];
-    p[3] = q[3];
-    return p;
-  }
-
-  var halfTheta = this.Math.acos(cosHalfTheta);
-  var sinHalfTheta = this.Math.sqrt(1.0 - cosHalfTheta * cosHalfTheta);
-
-  if(this.Math.abs(sinHalfTheta) < 0.001) {
-    p[0] = 0.5 * (q[0]+r[0]);
-    p[1] = 0.5 * (q[1]+r[1]);
-    p[2] = 0.5 * (q[2]+r[2]);
-    p[3] = 0.5 * (q[3]+r[3]);
-    return p;
-  }
-
-  var ratioA = this.Math.sin((1-t) * halfTheta) / sinHalfTheta;
-  var ratioB = this.Math.sin(t * halfTheta) / sinHalfTheta;
-
-  p[0] = (q[0] * ratioA + p[0] * ratioB);
-  p[1] = (q[1] * ratioA + p[1] * ratioB);
-  p[2] = (q[2] * ratioA + p[2] * ratioB);
-  p[3] = (q[3] * ratioA + p[3] * ratioB);
-
-  return p;
-};
-
 
 
 /**
@@ -1002,29 +919,6 @@ PMDView.prototype._moveBone = function() {
   if(this.ikType == this._IK_ON)
     this._resolveIK();
 
-};
-
-
-PMDView.prototype._initMotions = function() {
-  for(var i = 0; i < this.pmd.boneCount; i++) {
-    this.motions[i] = {
-      r: this.quat4.create(),
-      p: this.vec3.create(),
-      done: false
-    };
-  }
-};
-
-
-/**
- * TODO: temporal
- */
-PMDView.prototype._initMotions2 = function() {
-  for(var i = 0; i < this.pmd.boneCount; i++) {
-    this.quat4.clear(this.motions[i].r);
-    this.vec3.clear(this.motions[i].p);
-    this.motions[i].done = false;
-  }
 };
 
 
@@ -1047,6 +941,7 @@ vec3.rotateByQuat4 = function(vec, quat, dest) {
 };
 
 
+// TODO: move generic place
 vec3.clear = function(v) {
   v[0] = 0;
   v[1] = 0;
@@ -1058,7 +953,14 @@ quat4.clear = function(q) {
   q[0] = 0;
   q[1] = 0;
   q[2] = 0;
-  q[3] = 0;
+  q[3] = 1;
+};
+
+
+PMDView.prototype._getOriginalBoneMotion = function(bone) {
+  return (this.dancing)
+           ? this.vmd.getBoneMotion(bone)
+           : this.originalMotions[bone.name];
 };
 
 
@@ -1071,14 +973,8 @@ PMDView.prototype._getBoneMotion = function(index) {
     return motion;
   }
 
-  var bn = this.pmd.bones[index].name;
-  if(this.originalMotions[bn] === undefined) {
-    this.originalMotions[bn] = {
-      rotation: [0.0, 0.0, 0.0, 1.0],
-      location: [0.0, 0.0, 0.0]
-    };
-  }
-  var m = this.originalMotions[bn];
+  // TODO: temporal work around
+  var m = this._getOriginalBoneMotion(this.pmd.bones[index]);
 
   var r = this.quat4.set(m.rotation, motion.r);
   var t = m.location;
@@ -1181,7 +1077,7 @@ PMDView.prototype._resolveIK = function() {
           this.quat4.multiply(parentRotation, q, q);
         }
 
-        this.quat4.normalize(r, this.originalMotions[cb.name].rotation);
+        this.quat4.normalize(r, this.vmd.getBoneMotion(cb).rotation);
         this.quat4.multiply(q, cbm.r, cbm.r);
         this.motions[ik.targetBoneIndex].done = false;
         for(var l = 0; l <= k; l++) {

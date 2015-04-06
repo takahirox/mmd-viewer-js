@@ -20,6 +20,7 @@
 // configurations
 var __modelBaseURL = './model';
 var __motionBaseURL = './vmd';
+var __musicBaseURL = './music';
 
 var __models = [
   {name: 'Kaito',
@@ -86,9 +87,11 @@ var __motions = [
    url:  [__motionBaseURL + '/tokino_kakera.vmd',
           __motionBaseURL + '/tokino_kakera_cam.vmd'],
    eye:  [0, 10, -22]},
-  {name: 'Wavefile',
+  {name: 'Wavefile (Short ver.)',
    url:  [__motionBaseURL + '/wavefile_v2.vmd'],
    eye:  [0, 10, -22],
+   music: {url: __musicBaseURL + '/wavefile_short.mp3',
+           offset: 320},
    selected: true},
 /*
   {name: 'Luka Luka Night fever',
@@ -97,16 +100,37 @@ var __motions = [
   {name: 'Melt',
    url:  [__motionBaseURL + '/melt.vmd',
           __motionBaseURL + '/melt_camera.vmd'],
-   eye:  [0, 10, -22]},
+   eye:  [0, 10, -22],
+   music: {url : __musicBaseURL + '/melt.mp3',
+           offset: 0}},
   {name: 'Senbon Zakura',
    url:  [__motionBaseURL + '/senbonzakura.vmd',
           __motionBaseURL + '/senbonzakura_camera.vmd'],
-   eye:  [0, 10, -22]},
+   eye:  [0, 10, -22],
+   music: {url: __musicBaseURL + '/senbonzakura.mp3',
+           offset: -50}},
+  {name: 'Senbon Zakura(2)',
+   url:  [__motionBaseURL + '/senbonzakura2.vmd',
+          __motionBaseURL + '/senbonzakura_camera2.vmd'],
+   eye:  [0, 10, -22],
+   music: {url: __musicBaseURL + '/senbonzakura.mp3',
+           offset: 0}},
   {name: 'Sweet Magic',
    url:  [__motionBaseURL + '/sweetmagic-left.vmd',
           __motionBaseURL + '/sweetmagic-lip.vmd'],
-   eye:  [-10, 10, -22]},
+   eye:  [-10, 10, -22],
+   music: {url: __musicBaseURL + '/sweetmagic.mp3',
+           offset: 0}},
 */
+];
+
+
+var __audios = [
+  {name: 'Audio OFF',
+   value: PMDView._AUDIO_OFF},
+  {name: 'Audio ON',
+   value: PMDView._AUDIO_ON,
+   selected: true},
 ];
 
 
@@ -154,10 +178,12 @@ var __skinnings = [
 
 var __runTypes = [
   {name: 'Frame Oriented',
-   value: PMDView._RUN_FRAME_ORIENTED,
-   selected: true},
+   value: PMDView._RUN_FRAME_ORIENTED},
   {name: 'Real Time Oriented',
-   value: PMDView._RUN_REALTIME_ORIENTED},
+   value: PMDView._RUN_REALTIME_ORIENTED,
+   selected: true},
+  {name: 'Audio Oriented',
+   value: PMDView._RUN_AUDIO_ORIENTED},
 ];
 
 
@@ -194,6 +220,7 @@ var __loadMotionButton;
 var __videoGenerationCheckbox;
 var __modelSelect;
 var __motionSelect;
+var __audioSelect;
 var __physicsSelect;
 var __ikSelect;
 var __morphSelect;
@@ -210,6 +237,7 @@ var __vmdFileLoaded = false;
 var __worker = null;
 var __selectedModel;
 var __selectedMotion;
+var __selectedAudio;
 var __selectedPhysics;
 var __selectedSkinning;
 var __selectedLighting;
@@ -227,6 +255,9 @@ var __putStatus = function(str) {
 var __initState = function() {
   __loadModelButton.disabled         = false;
   __loadMotionButton.disabled        = true;
+  __modelSelect.disabled             = false;
+  __motionSelect.disabled            = false;
+  __audioSelect.disabled             = false;
   __videoGenerationCheckbox.disabled = false;
   __physicsSelect.disabled           = false;
   __ikSelect.disabled                = false;
@@ -236,12 +267,17 @@ var __initState = function() {
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
   __videoGenerationCheckboxState();
+  __motionSelectedState();
+  __audioSelectedState();
 };
 
 
 var __loadingFileState = function() {
   __loadModelButton.disabled         = true;
   __loadMotionButton.disabled        = true;
+  __modelSelect.disabled             = true;
+  __motionSelect.disabled            = true;
+  __audioSelect.disabled             = true;
   __videoGenerationCheckbox.disabled = true;
   __physicsSelect.disabled           = true;
   __ikSelect.disabled                = true;
@@ -256,6 +292,9 @@ var __loadingFileState = function() {
 var __pmdFileLoadedState = function() {
   __loadModelButton.disabled         = true;
   __loadMotionButton.disabled        = false;
+  __modelSelect.disabled             = false;
+  __motionSelect.disabled            = false;
+  __audioSelect.disabled             = false;
   __videoGenerationCheckbox.disabled = false;
   __physicsSelect.disabled           = false;
   __ikSelect.disabled                = false;
@@ -265,12 +304,17 @@ var __pmdFileLoadedState = function() {
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
   __videoGenerationCheckboxState();
+  __motionSelectedState();
+  __audioSelectedState();
 };
 
 
 var __vmdFileLoadedState = function() {
   __loadModelButton.disabled         = true;
   __loadMotionButton.disabled        = true;
+  __modelSelect.disabled             = false;
+  __motionSelect.disabled            = false;
+  __audioSelect.disabled             = false;
   __videoGenerationCheckbox.disabled = true;
   __physicsSelect.disabled           = false;
   __ikSelect.disabled                = false;
@@ -280,16 +324,77 @@ var __vmdFileLoadedState = function() {
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
   __videoGenerationCheckboxState();
+  __motionSelectedState();
+  __audioSelectedState();
+
+  __audioSelect.disabled             = true;
 };
 
 
+var __danceReadyState = function() {
+  __loadModelButton.disabled         = true;
+  __loadMotionButton.disabled        = true;
+  __modelSelect.disabled             = false;
+  __motionSelect.disabled            = false;
+  __videoGenerationCheckbox.disabled = true;
+  __physicsSelect.disabled           = false;
+  __ikSelect.disabled                = false;
+  __morphSelect.disabled             = false;
+  __runTypeSelect.disabled           = false;
+  __skinningSelect.disabled          = true;
+  __lightingSelect.disabled          = false;
+  __lightColorRange.disabled         = false;
+  __videoGenerationCheckboxState();
+  __motionSelectedState();
+  __audioSelectedState();
+
+  __audioSelect.disabled             = true;
+};
+
+
+// TODO: remove magic numbers
+// TODO: rename
 var __videoGenerationCheckboxState = function() {
   if(__videoGenerationCheckbox.checked) {
     __runTypeSelect.options[0].selected = true;
     __runTypeSelect.options[1].selected = false;
+    __runTypeSelect.options[2].selected = false;
+    __runTypeSelect.disabled = true;
+    __audioSelect.options[0].selected = true;
+    __audioSelect.options[1].selected = false;
+    __audioSelect.disabled = true;
+  } else {
+    __runTypeSelect.disabled = false;
+    __audioSelect.disabled = false;
+  }
+};
+
+
+// TODO: remove magic numbers
+// TODO: rename
+var __audioSelectedState = function() {
+  if(__audioSelect.options[1].selected) {
+    __runTypeSelect.options[0].selected = false;
+    __runTypeSelect.options[1].selected = false;
+    __runTypeSelect.options[2].selected = true;
     __runTypeSelect.disabled = true;
   } else {
     __runTypeSelect.disabled = false;
+  }
+};
+
+
+// TODO: remove magic numbers
+// TODO: rename
+var __motionSelectedState = function() {
+  var index = parseInt(__motionSelect.value);
+  var m = __motions[index];
+  if(m.music !== undefined && m.music !== null) {
+    __audioSelect.disabled = false;
+  } else {
+    __audioSelect.options[0].selected = true;
+    __audioSelect.options[1].selected = false;
+    __audioSelect.disabled = true;
   }
 };
 
@@ -299,6 +404,7 @@ var __init = function() {
   __loadMotionButton = document.getElementById('loadMotionButton');
   __modelSelect = document.getElementById('modelSelect');
   __motionSelect = document.getElementById('motionSelect');
+  __audioSelect = document.getElementById('audioSelect');
   __videoGenerationCheckbox =
                    document.getElementById('videoGenerationCheckbox');
   __physicsCheckbox = document.getElementById('physicsCheckbox');
@@ -315,6 +421,7 @@ var __init = function() {
 
   __initSelect(__modelSelect, __models);
   __initSelect(__motionSelect, __motions);
+  __initSelect(__audioSelect, __audios);
   __initSelect(__physicsSelect, __physicses);
   __initSelect(__ikSelect, __iks);
   __initSelect(__morphSelect, __morphs);
@@ -426,6 +533,7 @@ var __imagesLoaded = function(pmd) {
   __setSkinningType(pmdView);
   __setLightingType(pmdView);
   __setLightColor(pmdView);
+  __setAudioType(pmdView);
 
   pmdView.setup();
   pmdView.setEye(__selectedModel.eye);
@@ -509,12 +617,30 @@ var __analyzeVMD = function(buffers) {
   __pmdView.setEye(__selectedMotion.eye);
 
   __vmdFileLoaded = true;
-  __startDance();
+
+  if(__selectedMotion.music) {
+    __loadMusicFile();
+  } else {
+    __startDance();
+  }
+};
+
+
+var __loadMusicFile = function() {
+  __loadingFileState();
+
+  var url = __selectedMotion.music.url;
+  var audio = new Audio(url);
+  audio.addEventListener('canplaythrough', function() {
+    __startDance();
+  });
+  __pmdView.setAudio(audio, __selectedMotion.music.offset);
+  __putStatus('loading Audio files...');
 };
 
 
 var __startDance = function(pmdView) {
-  __putStatus('VMD is ready.');
+  __putStatus('ready.');
   __putStatus('starts dance.');
 
   __pmdView.startDance();
@@ -576,6 +702,19 @@ var __lightColorRangeChanged = function() {
 };
 
 
+var __audioSelectChanged = function() {
+  __audioSelectedState();
+  if(__pmdFileLoaded)
+    __setAudioType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
+var __motionSelectChanged = function() {
+  __motionSelectedState();
+  __audioSelectChanged();
+};
+
+
 var __updateLightColorSpan = function() {
   __lightColorSpan.innerText = __lightColorRange.value;
 };
@@ -620,6 +759,12 @@ var __setLightingType = function(pmdView) {
 var __setLightColor = function(pmdView) {
   var color = parseFloat(__lightColorRange.value);
   pmdView.setLightColor(color);
+};
+
+
+var __setAudioType = function(pmdView) {
+  var index = parseInt(__audioSelect.value);
+  pmdView.setAudioType(__audios[index].value);
 };
 
 
@@ -817,7 +962,8 @@ load model
 <button id="loadMotionButton" onclick="__loadMotionButtonClicked()">
 load motion
 </button>
-<select id="motionSelect"></select>
+<select id="motionSelect" onchange="__motionSelectChanged()"></select>
+<select id="audioSelect" onchange="__audioSelectChanged()"></select><br />
 <input type="checkbox" id="videoGenerationCheckbox"
  onchange="__videoGenerationCheckboxChanged()" />
 generate a video
@@ -866,6 +1012,11 @@ Thanks to
  <ul>
   <li><a href="http://www.nicovideo.jp/watch/sm13147122">Wavefile</a></li>
   <li><a href="http://www.nicovideo.jp/watch/sm13658706">Toki No Kakera</a></li>
+ </ul>
+</li>
+<li>Musics
+ <ul>
+  <li><a href="http://www.nicovideo.jp/watch/sm11938255">WAVEFILE shot ver.</a></li>
  </ul>
 </li>
 <li>Libraries

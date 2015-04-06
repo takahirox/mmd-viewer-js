@@ -17,6 +17,7 @@ importScripts('../src/Physics.js');
 /**
  * TODO: temporal
  */
+self.JSON = JSON;
 self.addEventListener('message', function(e) {
   if(! self.__pmd) {
     var uint8 = new Uint8Array(e.data);
@@ -24,14 +25,14 @@ self.addEventListener('message', function(e) {
     self.__pmd = pfp.parse();
     self.__physics = new Physics(self.__pmd);
   } else {
-    var params = JSON.parse(e.data);
+    var params = self.JSON.parse(e.data);
     if(params.cmd && params.cmd == 'reset') {
       var motions = params.motions;
       self.__physics.resetRigidBodies(motions);
     } else {
       var motions = params;
       self.__physics.simulate(motions);
-      self.postMessage(JSON.stringify(motions));
+      self.postMessage(self.JSON.stringify(motions));
     }
   }
 }, false);
