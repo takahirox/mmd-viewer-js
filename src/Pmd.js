@@ -98,6 +98,24 @@ PMD.prototype.toRight = function() {
 };
 
 
+PMD.prototype.getBoneNames = function() {
+  var array = [];
+  for(var i = 0; i < this.boneCount; i++) {
+    array[i] = this.bones[i].name;
+  }
+  return array;
+};
+
+
+PMD.prototype.getFaceNames = function() {
+  var array = [];
+  for(var i = 0; i < this.faceCount; i++) {
+    array[i] = this.faces[i].name;
+  }
+  return array;
+};
+
+
 PMD.prototype.dump = function() {
   var str = '';
 
@@ -485,6 +503,11 @@ function PMDBone(id) {
   this.type = null;
   this.ikIndex = null;
   this.position = null;
+
+  this.motionIndex = null; // Note: be set by VMD;
+                           // TODO: remove and use id in VMD
+                           //       instead of motionIndex
+                           //       not to have VMD related info here
 };
 
 
@@ -545,6 +568,11 @@ function PMDFace(id) {
   this.type = null;
   this.vertices = null;
   this.done = false;
+
+  this.motionIndex = null; // Note: be set by VMD;
+                           // TODO: remove and use id in VMD
+                           //       instead of motionIndex
+                           //       not to have VMD related info here
 };
 
 
