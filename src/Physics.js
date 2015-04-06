@@ -831,9 +831,9 @@ PhysicsRigidBody.prototype.preSimulation = function(motions) {
   if(this.body.boneIndex == 0xFFFF)
     return;
 
-  if(this.body.type == 0 && this.body.boneIndex != 0)
+  if(this.body.type == 0/* && this.body.boneIndex != 0 */)
     this._setTransformFromBone(motions);
-  if(this.body.type == 2 && this.body.boneIndex != 0)
+  if(this.body.type == 2/* && this.body.boneIndex != 0 */)
     this._setPositionFromBone(motions);
 };
 
@@ -941,9 +941,10 @@ PhysicsConstraint.prototype._init = function() {
   var body1 = this.bodyA.body;
   var body2 = this.bodyB.body;
 
-/*
+
   if(body1.type !== 0 && body2.type == 2) {
-    if(body1.boneIndex > 0 && body2.boneIndex > 0) {
+    if(body1.boneIndex > 0       && body2.boneIndex > 0 &&
+       body1.boneIndex != 0xFFFF && body2.boneIndex != 0xFFFF) {
       var b1 = this.pmd.bones[body1.boneIndex];
       var b2 = this.pmd.bones[body2.boneIndex];
       if(b2.parentIndex == b1.id) {
@@ -951,7 +952,7 @@ PhysicsConstraint.prototype._init = function() {
       }
     }
   }
-*/
+
 
   var form = this._newTransform();
   this._setOriginArray3Left(form, joint.position);
@@ -1003,7 +1004,7 @@ PhysicsConstraint.prototype._init = function() {
     }
   }
 
-  this.world.addConstraint(constraint/*, true*/);
+  this.world.addConstraint(constraint, true);
   this.constraint = constraint;
 
   Ammo.destroy(form);
