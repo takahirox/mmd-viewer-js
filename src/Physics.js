@@ -1003,7 +1003,7 @@ PhysicsConstraint.prototype._init = function() {
     }
   }
 
-  this.world.addConstraint(constraint, true);
+  this.world.addConstraint(constraint/*, true*/);
   this.constraint = constraint;
 
   Ammo.destroy(form);
@@ -1099,17 +1099,30 @@ Physics.prototype.simulate = function(motions, dframe) {
  * TODO: temporal
  */
 Physics.prototype.simulateFrame = function(motions, dframe) {
-  var g = this.world.getGravity();
-  g.setY(-10*10/(dframe*3));
-  this.world.setGravity(g);
+  var g;
+  var stepTime = 1/60*dframe;
+  var maxStepNum = dframe;
+  var unitStep = 1/60;
+
+  // Note: sacrifice some precision for the performance
+  if(dframe >= 3) {
+    maxStepNum = 2;
+    unitStep = 1/60*2;
+
+    g = this.world.getGravity();
+    g.setY(-10*10/(2));
+    this.world.setGravity(g);
+  }
 
   this._preSimulation(motions);
-  this.world.stepSimulation(1/60*dframe, 2, 1/60*dframe);
+  this.world.stepSimulation(stepTime, maxStepNum, unitStep);
   this._postSimulation(motions);
 
-  g.setY(-10*10);
-  this.world.setGravity(g);
-  Ammo.destroy(g);
+  if(dframe >= 3) {
+    g.setY(-10*10);
+    this.world.setGravity(g);
+    Ammo.destroy(g);
+  }
 };
 
 
