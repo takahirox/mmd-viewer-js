@@ -14,6 +14,7 @@ function PMDView(layer, pmd, worker) {
   this.vArray1 = layer.createFloatArray(pmd.vertexCount*this._V_ITEM_SIZE);
   this.vArray2 = layer.createFloatArray(pmd.vertexCount*this._V_ITEM_SIZE);
   this.vmArray = layer.createFloatArray(pmd.vertexCount*this._V_ITEM_SIZE);
+  this.veArray = layer.createFloatArray(pmd.vertexCount*this._VE_ITEM_SIZE);
   this.mtArray1 = layer.createFloatArray(pmd.vertexCount*this._MT_ITEM_SIZE);
   this.mtArray2 = layer.createFloatArray(pmd.vertexCount*this._MT_ITEM_SIZE);
   this.mrArray1 = layer.createFloatArray(pmd.vertexCount*this._MR_ITEM_SIZE);
@@ -28,6 +29,7 @@ function PMDView(layer, pmd, worker) {
   this.vBuffer1 = layer.createBuffer();
   this.vBuffer2 = layer.createBuffer();
   this.vmBuffer = layer.createBuffer();
+  this.veBuffer = layer.createBuffer();
   this.mtBuffer1 = layer.createBuffer();
   this.mtBuffer2 = layer.createBuffer();
   this.mrBuffer1 = layer.createBuffer();
@@ -82,6 +84,7 @@ function PMDView(layer, pmd, worker) {
   this.skinningType = null;
   this.lightingType = null;
   this.ikType = null;
+  this.edgeType = null;
   this.morphType = null;
   this.lightColor = null;
   this.runType = null;
@@ -93,6 +96,7 @@ function PMDView(layer, pmd, worker) {
   this.setSkinningType(this._SKINNING_CPU_AND_GPU);
   this.setIKType(this._IK_ON);
   this.setMorphType(this._MORPH_ON);
+  this.setEdgeType(this._EDGE_ON);
   this.setRunType(this._RUN_FRAME_ORIENTED);
   this.setAudioType(this._AUDIO_ON);
   this.setLightColor(1.0);
@@ -111,6 +115,7 @@ PMDView.prototype._BI_ITEM_SIZE = 2;
 PMDView.prototype._MT_ITEM_SIZE = 3;
 PMDView.prototype._MR_ITEM_SIZE = 4;
 PMDView.prototype._VN_ITEM_SIZE = 3;
+PMDView.prototype._VE_ITEM_SIZE  = 1;
 
 PMDView.prototype._FRAME_S  = 1/60;
 PMDView.prototype._FRAME_MS = 1/60*1000;
@@ -142,6 +147,9 @@ PMDView.prototype._RUN_AUDIO_ORIENTED    = 2;
 PMDView.prototype._AUDIO_OFF = 0;
 PMDView.prototype._AUDIO_ON  = 1;
 
+PMDView.prototype._EDGE_OFF = 0;
+PMDView.prototype._EDGE_ON  = 1;
+
 PMDView._PHYSICS_OFF        = PMDView.prototype._PHYSICS_OFF;
 PMDView._PHYSICS_ON         = PMDView.prototype._PHYSICS_ON;
 PMDView._PHYSICS_WORKERS_ON = PMDView.prototype._PHYSICS_WORKERS_ON;
@@ -166,6 +174,9 @@ PMDView._RUN_AUDIO_ORIENTED    = PMDView.prototype._RUN_AUDIO_ORIENTED;
 
 PMDView._AUDIO_OFF = PMDView.prototype._AUDIO_OFF = 0;
 PMDView._AUDIO_ON  = PMDView.prototype._AUDIO_ON  = 1;
+
+PMDView._EDGE_OFF = PMDView.prototype._EDGE_OFF;
+PMDView._EDGE_ON  = PMDView.prototype._EDGE_ON;
 
 
 PMDView.prototype.setup = function() {
@@ -285,10 +296,16 @@ PMDView.prototype.setAudioType = function(type) {
 };
 
 
+PMDView.prototype.setEdgeType = function(type) {
+  this.edgeType = type;
+};
+
+
 PMDView.prototype._initArrays = function() {
   this._initVertices();
   this._initVerticesFromBones();
   this._initVertexMorphs();
+  this._initVertexEdges();
   this._initCoordinates();
   this._initIndices();
   this._initBoneWeights();
@@ -344,6 +361,13 @@ PMDView.prototype._initVertexMorphs = function() {
     for(var j = 0; j < this._V_ITEM_SIZE; j++) {
       this.vmArray[index+j] = 0;
     }
+  }
+};
+
+
+PMDView.prototype._initVertexEdges = function() {
+  for(var i = 0; i < this.pmd.vertexCount; i++) {
+    this.veArray[i] = this.pmd.vertices[i].edgeFlag ? 0.0 : 1.0;
   }
 };
 
@@ -579,6 +603,8 @@ PMDView.prototype._pourArrays = function() {
                         this._BI_ITEM_SIZE, this.pmd.vertexCount);
   layer.pourArrayBuffer(this.vnBuffer, this.vnArray,
                         this._VN_ITEM_SIZE, this.pmd.vertexCount);
+  layer.pourArrayBuffer(this.veBuffer, this.veArray,
+                        this._VE_ITEM_SIZE, this.pmd.vertexCount);
 };
 
 
@@ -621,6 +647,10 @@ PMDView.prototype._bindBuffers = function() {
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vnBuffer);
   gl.vertexAttribPointer(shader.vertexNormalAttribute,
                          this.vnBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.veBuffer);
+  gl.vertexAttribPointer(shader.vertexEdgeAttribute,
+                         this.veBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.mtBuffer1);
   gl.vertexAttribPointer(shader.motionTranslationAttribute1,
@@ -763,6 +793,7 @@ PMDView.prototype.update = function() {
 
 /**
  * TODO: temporal
+ * TODO: optimize
  */
 PMDView.prototype.draw = function() {
   if(this.dframe == 0)
@@ -777,6 +808,15 @@ PMDView.prototype.draw = function() {
     this.layer.gl.uniform1i(this.layer.shader.uVTFUniform, 1);
   }
 
+  this.layer.gl.uniform1i(this.layer.shader.edgeUniform, 0);
+  this.layer.gl.enable(this.layer.gl.BLEND);
+  if(this.edgeType == this._EDGE_OFF) {
+    this.layer.gl.disable(this.layer.gl.CULL_FACE);
+    this.layer.gl.cullFace(this.layer.gl.FRONT);
+  } else{
+    this.layer.gl.enable(this.layer.gl.CULL_FACE);
+    this.layer.gl.cullFace(this.layer.gl.BACK);
+  }
   var offset = 0;
   for(var i = 0; i < this.pmd.materialCount; i++) {
     // TODO: temporal
@@ -803,6 +843,22 @@ PMDView.prototype.draw = function() {
 
     var num = this.pmd.materials[i].vertexCount;
     this._draw(this.textures[i], offset, num);
+    offset += num;
+  }
+
+  if(this.edgeType == this._EDGE_OFF)
+    return;
+
+  this.layer.gl.uniform1i(this.layer.shader.edgeUniform, 1);
+  this.layer.gl.uniform1i(this.layer.shader.useToonUniform, 0);
+  this.layer.gl.cullFace(this.layer.gl.FRONT);
+  this.layer.gl.disable(this.layer.gl.BLEND);
+  this.layer.gl.enable(this.layer.gl.CULL_FACE);
+  var offset = 0;
+  for(var i = 0; i < this.pmd.materialCount; i++) {
+    var num = this.pmd.materials[i].vertexCount;
+    if(this.pmd.materials[i].edgeFlag)
+      this._draw(this.textures[i], offset, num);
     offset += num;
   }
 };
