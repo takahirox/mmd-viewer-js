@@ -382,6 +382,11 @@ var __videoGenerationCheckboxState = function() {
     __runTypeSelect.disabled = false;
     __audioSelect.disabled = false;
   }
+
+  if(__pmdFileLoaded) {
+    __setRunType(__pmdView);
+    __setAudioType(__pmdView);
+  }
 };
 
 
@@ -395,6 +400,10 @@ var __audioSelectedState = function() {
     __runTypeSelect.disabled = true;
   } else {
     __runTypeSelect.disabled = false;
+  }
+
+  if(__pmdFileLoaded) {
+    __setRunType(__pmdView);
   }
 };
 
@@ -410,6 +419,10 @@ var __motionSelectedState = function() {
     __audioSelect.options[0].selected = true;
     __audioSelect.options[1].selected = false;
     __audioSelect.disabled = true;
+  }
+
+  if(__pmdFileLoaded) {
+    __setAudioType(__pmdView);
   }
 };
 
