@@ -28,6 +28,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
   attribute vec3 aVertexPosition2;\
   attribute vec3 aVertexNormal;\
   attribute vec3 aVertexMorph;\
+  attribute float aVertexEdge;\
   attribute vec2 aBoneIndices;\
   attribute float aBoneWeight;\
   attribute vec3 aMotionTranslation1;\
@@ -51,6 +52,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
   uniform sampler2D uVTF;\
   uniform sampler2D uToonTexture;\
   uniform bool uUseToon;\
+  uniform bool uEdge;\
 \
   varying vec2 vTextureCoordinates;\
   varying vec4 vLightWeighting;\
@@ -170,6 +172,15 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
     } else {\
       vLightWeighting = uDiffuseColor;\
     }\
+\
+    /* just copied from MMD.js */\
+    if(uEdge) {\
+      const float thickness = 0.003;\
+      vec4 epos = gl_Position;\
+      vec4 epos2 = uPMatrix * uMVMatrix * vec4(pos + norm, 1.0);\
+      vec4 enorm = normalize(epos2 - epos);\
+      gl_Position = epos + enorm * thickness * aVertexEdge * epos.w;\
+    }\
   }\
 ';
 
@@ -179,9 +190,16 @@ Layer.prototype._SHADERS['shader-fs'].src = '\
   precision mediump float;\
   varying vec2 vTextureCoordinates;\
   uniform sampler2D uSampler;\
+  uniform bool uEdge;\
   varying vec4 vLightWeighting;\
 \
   void main() {\
+\
+    if(uEdge) {\
+      gl_FragColor = vec4(vec3(0.0), 1.0);\
+      return;\
+    }\
+\
     vec4 textureColor = texture2D(uSampler, vTextureCoordinates);\
     gl_FragColor = vLightWeighting * textureColor;\
   }\
@@ -288,6 +306,9 @@ Layer.prototype._initShader = function(gl) {
   shader.vertexMorphAttribute =
     gl.getAttribLocation(shader, 'aVertexMorph');
   gl.enableVertexAttribArray(shader.vertexMorphAttribute);
+  shader.vertexEdgeAttribute =
+    gl.getAttribLocation(shader, 'aVertexEdge');
+  gl.enableVertexAttribArray(shader.vertexEdgeAttribute);
 
   shader.motionTranslationAttribute1 =
     gl.getAttribLocation(shader, 'aMotionTranslation1');
@@ -356,6 +377,9 @@ Layer.prototype._initShader = function(gl) {
     gl.getUniformLocation(shader, 'uUseToon');
   shader.toonTextureUniform =
     gl.getUniformLocation(shader, 'uToonTexture');
+
+  shader.edgeUniform =
+    gl.getUniformLocation(shader, 'uEdge');
 
   return shader;
 }
@@ -478,8 +502,6 @@ Layer.prototype.draw = function(texture, blend, num, offset) {
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
 //  gl.disable(gl.DEPTH_TEST);
-  gl.enable(gl.BLEND);
-//  gl.enable(gl.CULL_FACE);
 
   this.setMatrixUniforms(gl);
   gl.drawElements(gl.TRIANGLES, num, gl.UNSIGNED_SHORT, offset*2);

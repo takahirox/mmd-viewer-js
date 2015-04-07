@@ -165,6 +165,15 @@ var __morphs = [
 ];
 
 
+var __edges = [
+  {name: 'Edge OFF',
+   value: PMDView._EDGE_OFF},
+  {name: 'Edge ON',
+   value: PMDView._EDGE_ON,
+   selected: true},
+];
+
+
 var __skinnings = [
   {name: 'CPU Skinning',
    value: PMDView._SKINNING_CPU},
@@ -225,6 +234,7 @@ var __physicsSelect;
 var __ikSelect;
 var __morphSelect;
 var __runTypeSelect;
+var __edgeSelect;
 var __skinningSelect;
 var __lightingSelect;
 var __lightColorRange;
@@ -263,12 +273,13 @@ var __initState = function() {
   __ikSelect.disabled                = false;
   __morphSelect.disabled             = false;
   __runTypeSelect.disabled           = false;
+  __edgeSelect.disabled              = false;
   __skinningSelect.disabled          = false;
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
-  __videoGenerationCheckboxState();
   __motionSelectedState();
   __audioSelectedState();
+  __videoGenerationCheckboxState();
 };
 
 
@@ -280,6 +291,7 @@ var __loadingFileState = function() {
   __audioSelect.disabled             = true;
   __videoGenerationCheckbox.disabled = true;
   __physicsSelect.disabled           = true;
+  __edgeSelect.disabled              = true;
   __ikSelect.disabled                = true;
   __morphSelect.disabled             = true;
   __runTypeSelect.disabled           = true;
@@ -298,14 +310,15 @@ var __pmdFileLoadedState = function() {
   __videoGenerationCheckbox.disabled = false;
   __physicsSelect.disabled           = false;
   __ikSelect.disabled                = false;
+  __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
   __runTypeSelect.disabled           = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
-  __videoGenerationCheckboxState();
   __motionSelectedState();
   __audioSelectedState();
+  __videoGenerationCheckboxState();
 };
 
 
@@ -318,14 +331,15 @@ var __vmdFileLoadedState = function() {
   __videoGenerationCheckbox.disabled = true;
   __physicsSelect.disabled           = false;
   __ikSelect.disabled                = false;
+  __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
   __runTypeSelect.disabled           = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
-  __videoGenerationCheckboxState();
   __motionSelectedState();
   __audioSelectedState();
+  __videoGenerationCheckboxState();
 
   __audioSelect.disabled             = true;
 };
@@ -339,14 +353,15 @@ var __danceReadyState = function() {
   __videoGenerationCheckbox.disabled = true;
   __physicsSelect.disabled           = false;
   __ikSelect.disabled                = false;
+  __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
   __runTypeSelect.disabled           = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
-  __videoGenerationCheckboxState();
   __motionSelectedState();
   __audioSelectedState();
+  __videoGenerationCheckboxState();
 
   __audioSelect.disabled             = true;
 };
@@ -412,6 +427,7 @@ var __init = function() {
   __ikSelect = document.getElementById('ikSelect');
   __morphSelect = document.getElementById('morphSelect');
   __runTypeSelect = document.getElementById('runTypeSelect');
+  __edgeSelect = document.getElementById('edgeSelect');
   __skinningSelect = document.getElementById('skinningSelect');
   __lightingSelect = document.getElementById('lightingSelect');
   __lightColorRange = document.getElementById('lightColorRange');
@@ -426,6 +442,7 @@ var __init = function() {
   __initSelect(__ikSelect, __iks);
   __initSelect(__morphSelect, __morphs);
   __initSelect(__runTypeSelect, __runTypes);
+  __initSelect(__edgeSelect, __edges);
   __initSelect(__skinningSelect, __skinnings);
   __initSelect(__lightingSelect, __lightings);
 
@@ -530,6 +547,7 @@ var __imagesLoaded = function(pmd) {
   __setIKType(pmdView);
   __setMorphType(pmdView);
   __setRunType(pmdView);
+  __setEdgeType(pmdView);
   __setSkinningType(pmdView);
   __setLightingType(pmdView);
   __setLightColor(pmdView);
@@ -683,6 +701,12 @@ var __runTypeSelectChanged = function() {
 };
 
 
+var __edgeSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setEdgeType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
 var __skinningSelectChanged = function() {
   if(__pmdFileLoaded)
     __setSkinningType(__pmdView);  // TODO: has accessed __pmdView
@@ -741,6 +765,12 @@ var __setMorphType = function(pmdView) {
 var __setRunType = function(pmdView) {
   var index = parseInt(__runTypeSelect.value);
   pmdView.setRunType(__runTypes[index].value);
+};
+
+
+var __setEdgeType = function(pmdView) {
+  var index = parseInt(__edgeSelect.value);
+  pmdView.setEdgeType(__edges[index].value);
 };
 
 
@@ -980,9 +1010,11 @@ generate a video
 <select id="physicsSelect"  onchange="__physicsSelectChanged()"></select>
 <select id="ikSelect"       onchange="__ikSelectChanged()"></select>
 <select id="morphSelect"    onchange="__morphSelectChanged()"></select>
+<br />
+<select id="edgeSelect" onchange="__edgeSelectChanged()"></select>
+<select id="skinningSelect" onchange="__skinningSelectChanged()"></select>
 <select id="runTypeSelect"  onchange="__runTypeSelectChanged()"></select>
 <br />
-<select id="skinningSelect" onchange="__skinningSelectChanged()"></select>
 <select id="lightingSelect" onchange="__lightingSelectChanged()"></select>
 Light <!--Color-->Strength
 <input type="range" id="lightColorRange" min="0.0" max="2.0" step="0.1"
