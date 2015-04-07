@@ -1,12 +1,17 @@
 There is no readme for WAVEFILE shor ver.
 So I noted the author and original musics info here.
 
+Remember that he doesn't allow commercial use
+of his works with no contact.
+
                                    by takahiro
 
--------------------------------------------------
+-------------------------------------------------------
 
 Author: ÉâÉ}Å[ÉYP(LamazeP)
 
+His Piapro page
+http://piapro.jp/shine_longer
 His Nico profile
 http://www.nicovideo.jp/user/2523470
 
