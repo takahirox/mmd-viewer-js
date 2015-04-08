@@ -40,6 +40,7 @@ function PMD() {
 
   this.images = [];
   this.toonImages = [];
+  this.sphereImages = [];
 };
 
 
@@ -466,10 +467,48 @@ PMDMaterial.prototype.convertedFileName = function() {
   if((index = filename.lastIndexOf('*')) >= 0) {
     filename = filename.substring(0, index);
   }
-  if((index = filename.lastIndexOf('+')) >= 0) {
-    filename = filename.substring(0, index);
-  }
 
+  return filename;
+};
+
+
+/**
+ * TODO: temporal
+ */
+PMDMaterial.prototype.hasSphereTexture = function() {
+  if(this.fileName.lastIndexOf('.sph') >= 0 ||
+     this.fileName.lastIndexOf('.spa') >= 0)
+    return true;
+
+  return false;
+};
+
+
+/**
+ * TODO: temporal
+ */
+PMDMaterial.prototype.isSphereMapAddition = function() {
+  var filename = this.fileName;
+
+  if(filename.lastIndexOf('.spa') >= 0)
+    return true;
+
+  return false;
+};
+
+
+/**
+ * TODO: temporal
+ */
+PMDMaterial.prototype.sphereMapFileName = function() {
+  var filename = this.fileName;
+  var index;
+  if((index = filename.lastIndexOf('*')) >= 0) {
+    filename = filename.slice(index+1);
+  }
+  if((index = filename.lastIndexOf('+')) >= 0) {
+    filename = filename.slice(index+1);
+  }
   return filename;
 };
 
@@ -851,9 +890,14 @@ function PMDImageLoader(pmd, baseURL) {
 };
 
 
+/**
+ * TODO: temporal
+ */
 PMDImageLoader.prototype.load = function(callback) {
   this.pmd.images.length = 0;
   this.pmd.toonImages.length = 0;
+  this.pmd.sphereImages.length = 0;
+
   this.errorImageNum = 0;
   this.loadedImageNum = 0;
   this.noImageNum = 0;
@@ -906,6 +950,30 @@ PMDImageLoader.prototype.load = function(callback) {
     }
     this.pmd.toonImages[i].src = this.baseURL + '/' + fileName;
   }
+
+  // TODO: duplicated code
+  for(var i = 0; i < this.pmd.materialCount; i++) {
+    if(! this.pmd.materials[i].hasSphereTexture()) {
+      this.pmd.sphereImages[i] = this._generatePixelImage();
+      this.noImageNum++;
+      this._checkDone(callback);
+      continue;
+    }
+
+    var fileName = this.pmd.materials[i].sphereMapFileName();
+    var self = this;
+    this.pmd.sphereImages[i] = new Image();
+    this.pmd.sphereImages[i].onerror = function(event) {
+      self.errorImageNum++;
+      self._checkDone(callback);
+    }
+    this.pmd.sphereImages[i].onload = function(event) {
+      self.loadedImageNum++;
+      self._checkDone(callback);
+    }
+    this.pmd.sphereImages[i].src = this.baseURL + '/' + fileName;
+  }
+
 };
 
 
@@ -923,7 +991,7 @@ PMDImageLoader.prototype._generatePixelImage = function() {
 
 PMDImageLoader.prototype._checkDone = function(callback) {
   if(this.loadedImageNum + this.noImageNum + this.errorImageNum
-       >= this.pmd.materialCount + this.pmd.toonTextureCount) {
+       >= this.pmd.materialCount * 2 + this.pmd.toonTextureCount) {
     callback(this.pmd);
   }
 };

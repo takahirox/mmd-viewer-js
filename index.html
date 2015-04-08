@@ -157,10 +157,19 @@ var __iks = [
 
 
 var __morphs = [
-  {name: 'MORPHING OFF',
+  {name: 'Morphing OFF',
    value: PMDView._MORPH_OFF},
-  {name: 'MORPHING ON',
+  {name: 'Morphing ON',
    value: PMDView._MORPH_ON,
+   selected: true},
+];
+
+
+var __sphereMaps = [
+  {name: 'Sphere mapping OFF',
+   value: PMDView._SPHERE_MAP_OFF},
+  {name: 'Sphere mapping ON',
+   value: PMDView._SPHERE_MAP_ON,
    selected: true},
 ];
 
@@ -233,6 +242,7 @@ var __audioSelect;
 var __physicsSelect;
 var __ikSelect;
 var __morphSelect;
+var __sphereMapSelect;
 var __runTypeSelect;
 var __edgeSelect;
 var __skinningSelect;
@@ -272,6 +282,7 @@ var __initState = function() {
   __physicsSelect.disabled           = false;
   __ikSelect.disabled                = false;
   __morphSelect.disabled             = false;
+  __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
   __edgeSelect.disabled              = false;
   __skinningSelect.disabled          = false;
@@ -294,6 +305,7 @@ var __loadingFileState = function() {
   __edgeSelect.disabled              = true;
   __ikSelect.disabled                = true;
   __morphSelect.disabled             = true;
+  __sphereMapSelect.disabled         = true;
   __runTypeSelect.disabled           = true;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = true;
@@ -312,6 +324,7 @@ var __pmdFileLoadedState = function() {
   __ikSelect.disabled                = false;
   __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
+  __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
@@ -333,6 +346,7 @@ var __vmdFileLoadedState = function() {
   __ikSelect.disabled                = false;
   __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
+  __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
@@ -355,6 +369,7 @@ var __danceReadyState = function() {
   __ikSelect.disabled                = false;
   __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
+  __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
@@ -440,6 +455,7 @@ var __init = function() {
   __physicsSelect = document.getElementById('physicsSelect');
   __ikSelect = document.getElementById('ikSelect');
   __morphSelect = document.getElementById('morphSelect');
+  __sphereMapSelect = document.getElementById('sphereMapSelect');
   __runTypeSelect = document.getElementById('runTypeSelect');
   __edgeSelect = document.getElementById('edgeSelect');
   __skinningSelect = document.getElementById('skinningSelect');
@@ -455,6 +471,7 @@ var __init = function() {
   __initSelect(__physicsSelect, __physicses);
   __initSelect(__ikSelect, __iks);
   __initSelect(__morphSelect, __morphs);
+  __initSelect(__sphereMapSelect, __sphereMaps);
   __initSelect(__runTypeSelect, __runTypes);
   __initSelect(__edgeSelect, __edges);
   __initSelect(__skinningSelect, __skinnings);
@@ -560,6 +577,7 @@ var __imagesLoaded = function(pmd) {
   __setPhysicsType(pmdView);
   __setIKType(pmdView);
   __setMorphType(pmdView);
+  __setSphereMapType(pmdView);
   __setRunType(pmdView);
   __setEdgeType(pmdView);
   __setSkinningType(pmdView);
@@ -709,6 +727,12 @@ var __morphSelectChanged = function() {
 };
 
 
+var __sphereMapSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setSphereMapType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
 var __runTypeSelectChanged = function() {
   if(__pmdFileLoaded)
     __setRunType(__pmdView);  // TODO: has accessed __pmdView
@@ -773,6 +797,12 @@ var __setIKType = function(pmdView) {
 var __setMorphType = function(pmdView) {
   var index = parseInt(__morphSelect.value);
   pmdView.setMorphType(__morphs[index].value);
+};
+
+
+var __setSphereMapType = function(pmdView) {
+  var index = parseInt(__sphereMapSelect.value);
+  pmdView.setSphereMapType(__sphereMaps[index].value);
 };
 
 
@@ -1021,9 +1051,10 @@ generate a video
 </p>
 
 <p>
-<select id="physicsSelect"  onchange="__physicsSelectChanged()"></select>
-<select id="ikSelect"       onchange="__ikSelectChanged()"></select>
-<select id="morphSelect"    onchange="__morphSelectChanged()"></select>
+<select id="physicsSelect"   onchange="__physicsSelectChanged()"></select>
+<select id="ikSelect"        onchange="__ikSelectChanged()"></select>
+<select id="morphSelect"     onchange="__morphSelectChanged()"></select>
+<select id="sphereMapSelect" onchange="__sphereMapSelectChanged()"></select>
 <br />
 <select id="edgeSelect" onchange="__edgeSelectChanged()"></select>
 <select id="skinningSelect" onchange="__skinningSelectChanged()"></select>
