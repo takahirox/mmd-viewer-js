@@ -57,6 +57,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
 \
   varying vec2 vTextureCoordinates;\
   varying vec4 vLightWeighting;\
+  varying vec3 vNormal;\
 \
   highp float binary32(vec4 rgba) {\
     rgba = floor(255.0 * rgba + 0.5);\
@@ -143,6 +144,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
 \
     gl_Position = uPMatrix * uMVMatrix * vec4(pos, 1.0);\
     vTextureCoordinates = aTextureCoordinates;\
+    vNormal = normalize(norm);\
 \
     if(uLightingType > 0) {\
       vec4 vertexPositionEye4 = uMVMatrix * vec4(pos, 1.0);\
@@ -194,7 +196,11 @@ Layer.prototype._SHADERS['shader-fs'].src = '\
   varying vec2 vTextureCoordinates;\
   uniform sampler2D uSampler;\
   uniform bool uEdge;\
+  uniform bool uUseSphereMap;\
+  uniform bool uUseSphereMapAddition;\
+  uniform sampler2D uSphereTexture;\
   varying vec4 vLightWeighting;\
+  varying vec3 vNormal;\
 \
   void main() {\
 \
@@ -204,6 +210,18 @@ Layer.prototype._SHADERS['shader-fs'].src = '\
     }\
 \
     vec4 textureColor = texture2D(uSampler, vTextureCoordinates);\
+\
+    /* just copied from MMD.js */\
+    if(uUseSphereMap) {\
+      vec2 sphereCood = 0.5 * (1.0 + vec2(1.0, -1.0) * vNormal.xy);\
+      vec3 sphereColor = texture2D(uSphereTexture, sphereCood).rgb;\
+      if(uUseSphereMapAddition) {\
+        textureColor.rgb += sphereColor;\
+      } else {\
+        textureColor.rgb *= sphereColor;\
+      }\
+    }\
+\
     gl_FragColor = vLightWeighting * textureColor;\
   }\
 ';
@@ -385,6 +403,13 @@ Layer.prototype._initShader = function(gl) {
     gl.getUniformLocation(shader, 'uEdge');
   shader.shadowUniform =
     gl.getUniformLocation(shader, 'uShadow');
+
+  shader.sphereTextureUniform =
+    gl.getUniformLocation(shader, 'uSphereTexture');
+  shader.useSphereMapUniform =
+    gl.getUniformLocation(shader, 'uUseSphereMap');
+  shader.useSphereMapAdditionUniform =
+    gl.getUniformLocation(shader, 'uUseSphereMapAddition');
 
   return shader;
 }

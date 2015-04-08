@@ -42,6 +42,7 @@ function PMDView(layer, pmd, worker) {
 
   this.textures = [];
   this.toonTextures = [];
+  this.sphereTextures = [];
 
   this.eye = [0, 0, 0];
   this.center = [0, 0, 0];
@@ -86,6 +87,7 @@ function PMDView(layer, pmd, worker) {
   this.ikType = null;
   this.edgeType = null;
   this.morphType = null;
+  this.sphereMapType = null;
   this.lightColor = null;
   this.runType = null;
   this.audioType = null;
@@ -96,6 +98,7 @@ function PMDView(layer, pmd, worker) {
   this.setSkinningType(this._SKINNING_CPU_AND_GPU);
   this.setIKType(this._IK_ON);
   this.setMorphType(this._MORPH_ON);
+  this.setSphereMapType(this._SPHERE_MAP_ON);
   this.setEdgeType(this._EDGE_ON);
   this.setRunType(this._RUN_FRAME_ORIENTED);
   this.setAudioType(this._AUDIO_ON);
@@ -140,6 +143,9 @@ PMDView.prototype._IK_ON  = 1;
 PMDView.prototype._MORPH_OFF = 0;
 PMDView.prototype._MORPH_ON  = 1;
 
+PMDView.prototype._SPHERE_MAP_OFF = 0;
+PMDView.prototype._SPHERE_MAP_ON  = 1;
+
 PMDView.prototype._RUN_FRAME_ORIENTED    = 0;
 PMDView.prototype._RUN_REALTIME_ORIENTED = 1;
 PMDView.prototype._RUN_AUDIO_ORIENTED    = 2;
@@ -167,6 +173,9 @@ PMDView._IK_ON  = PMDView.prototype._IK_ON;
 
 PMDView._MORPH_OFF = PMDView.prototype._MORPH_OFF;
 PMDView._MORPH_ON  = PMDView.prototype._MORPH_ON;
+
+PMDView._SPHERE_MAP_OFF = PMDView.prototype._SPHERE_MAP_OFF;
+PMDView._SPHERE_MAP_ON  = PMDView.prototype._SPHERE_MAP_ON;
 
 PMDView._RUN_FRAME_ORIENTED    = PMDView.prototype._RUN_FRAME_ORIENTED;
 PMDView._RUN_REALTIME_ORIENTED = PMDView.prototype._RUN_REALTIME_ORIENTED;
@@ -283,6 +292,10 @@ PMDView.prototype.setIKType = function(type) {
 
 PMDView.prototype.setMorphType = function(type) {
   this.morphType = type;
+};
+
+PMDView.prototype.setSphereMapType = function(type) {
+  this.sphereMapType = type;
 };
 
 
@@ -473,6 +486,11 @@ PMDView.prototype._initTextures = function() {
 
   for(var i = 0; i < this.pmd.toonTextureCount; i++) {
     this.toonTextures[i] = this.layer.generateTexture(this.pmd.toonImages[i]);
+  }
+
+  for(var i = 0; i < this.pmd.materialCount; i++) {
+    this.sphereTextures[i] = 
+      this.layer.generateTexture(this.pmd.sphereImages[i]);
   }
 };
 
@@ -825,7 +843,7 @@ PMDView.prototype.draw = function() {
       this.layer.gl.uniform1i(this.layer.shader.shadowUniform, 0);
 
     // TODO: temporal
-    if(this.edgeType == this._EDGE_OFF || m.color[3] == 1.0) {
+    if(this.edgeType == this._EDGE_ON && m.color[3] == 1.0) {
       this.layer.gl.enable(this.layer.gl.CULL_FACE);
       this.layer.gl.cullFace(this.layer.gl.BACK);
     } else {
@@ -843,7 +861,7 @@ PMDView.prototype.draw = function() {
                             m.specularity);
 
     // TODO: rename tune to toon
-    if(this.pmd.materials[i].hasToon()) {
+    if(m.hasToon()) {
       this.layer.gl.activeTexture(this.layer.gl.TEXTURE2);
       this.layer.gl.bindTexture(this.layer.gl.TEXTURE_2D,
                                 this.toonTextures[m.tuneIndex]);
@@ -851,6 +869,23 @@ PMDView.prototype.draw = function() {
       this.layer.gl.uniform1i(this.layer.shader.useToonUniform, 1);
     } else {
       this.layer.gl.uniform1i(this.layer.shader.useToonUniform, 0);
+    }
+
+    if(this.sphereMapType == this._SPHERE_MAP_ON && m.hasSphereTexture()) {
+      this.layer.gl.activeTexture(this.layer.gl.TEXTURE3);
+      this.layer.gl.bindTexture(this.layer.gl.TEXTURE_2D,
+                                this.sphereTextures[i]);
+      this.layer.gl.uniform1i(this.layer.shader.sphereTextureUniform, 3);
+      this.layer.gl.uniform1i(this.layer.shader.useSphereMapUniform, 1);
+      if(m.isSphereMapAddition()) {
+        this.layer.gl.uniform1i(
+          this.layer.shader.useSphereMapAdditionUniform, 1);
+      } else {
+        this.layer.gl.uniform1i(
+          this.layer.shader.useSphereMapAdditionUniform, 0);
+      }
+    } else {
+      this.layer.gl.uniform1i(this.layer.shader.useSphereMapUniform, 0);
     }
 
     var num = this.pmd.materials[i].vertexCount;
