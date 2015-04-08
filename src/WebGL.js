@@ -53,6 +53,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
   uniform sampler2D uToonTexture;\
   uniform bool uUseToon;\
   uniform bool uEdge;\
+  uniform bool uShadow;\
 \
   varying vec2 vTextureCoordinates;\
   varying vec4 vLightWeighting;\
@@ -149,8 +150,10 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
       vec3 vectorToLightSource = normalize(uLightDirection -\
                                            vertexPositionEye3);\
       vec3 normalEye = normalize(uNMatrix * norm);\
-      float diffuseLightWeightning = max(dot(normalEye,\
-                                             vectorToLightSource), 0.0);\
+      float diffuseLightWeightning = (uShadow)\
+                                       ? max(dot(normalEye,\
+                                                 vectorToLightSource), 0.0)\
+                                       : 1.0;\
       vec3 reflectionVector = normalize(reflect(-vectorToLightSource,\
                                                  normalEye));\
       vec3 viewVectorEye = -normalize(vertexPositionEye3);\
@@ -196,7 +199,7 @@ Layer.prototype._SHADERS['shader-fs'].src = '\
   void main() {\
 \
     if(uEdge) {\
-      gl_FragColor = vec4(vec3(0.0), 1.0);\
+      gl_FragColor = vec4(vec3(0.0), vLightWeighting.a);\
       return;\
     }\
 \
@@ -211,7 +214,7 @@ Layer.prototype._initGl = function(canvas) {
   var context = null;
   for(var i = 0; i < names.length; i++) {
     try {
-      context = canvas.getContext(names[i]);
+      context = canvas.getContext(names[i], {antialias: true});
     } catch(e) {
       if(context)
         break;
@@ -380,6 +383,8 @@ Layer.prototype._initShader = function(gl) {
 
   shader.edgeUniform =
     gl.getUniformLocation(shader, 'uEdge');
+  shader.shadowUniform =
+    gl.getUniformLocation(shader, 'uShadow');
 
   return shader;
 }
@@ -479,29 +484,8 @@ Layer.prototype.draw = function(texture, blend, num, offset) {
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.uniform1i(shader.uSamplerUniform, 0);
 
-  var param1;
-  var param2;
-  switch(blend) {
-    case this._BLEND_ALPHA2:
-      param1 = gl.ONE;
-      param2 = gl.ONE_MINUS_SRC_ALPHA;
-      break;
-    case this._BLEND_ADD_ALPHA:
-      param1 = gl.SRC_ALPHA;
-      param2 = gl.ONE;
-      break;
-//  case this._BLEND_ALPHA:
-//  case null:
-    default:
-      param1 = gl.SRC_ALPHA;
-      param2 = gl.ONE_MINUS_SRC_ALPHA;
-      break;
-  }
-  gl.blendFuncSeparate(param1, param2, gl.ONE, gl.ONE);
-
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
-//  gl.disable(gl.DEPTH_TEST);
 
   this.setMatrixUniforms(gl);
   gl.drawElements(gl.TRIANGLES, num, gl.UNSIGNED_SHORT, offset*2);

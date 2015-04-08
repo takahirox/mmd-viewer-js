@@ -810,17 +810,29 @@ PMDView.prototype.draw = function() {
 
   this.layer.gl.uniform1i(this.layer.shader.edgeUniform, 0);
   this.layer.gl.enable(this.layer.gl.BLEND);
-  if(this.edgeType == this._EDGE_OFF) {
-    this.layer.gl.disable(this.layer.gl.CULL_FACE);
-    this.layer.gl.cullFace(this.layer.gl.FRONT);
-  } else{
-    this.layer.gl.enable(this.layer.gl.CULL_FACE);
-    this.layer.gl.cullFace(this.layer.gl.BACK);
-  }
+  this.layer.gl.blendFuncSeparate(this.layer.gl.SRC_ALPHA,
+                                  this.layer.gl.ONE_MINUS_SRC_ALPHA,
+                                  this.layer.gl.SRC_ALPHA,
+                                  this.layer.gl.DST_ALPHA);
   var offset = 0;
   for(var i = 0; i < this.pmd.materialCount; i++) {
-    // TODO: temporal
     var m = this.pmd.materials[i];
+
+    // TODO: temporal
+    if(m.edgeFlag)
+      this.layer.gl.uniform1i(this.layer.shader.shadowUniform, 1);
+    else
+      this.layer.gl.uniform1i(this.layer.shader.shadowUniform, 0);
+
+    // TODO: temporal
+    if(this.edgeType == this._EDGE_OFF || m.color[3] == 1.0) {
+      this.layer.gl.enable(this.layer.gl.CULL_FACE);
+      this.layer.gl.cullFace(this.layer.gl.BACK);
+    } else {
+      this.layer.gl.disable(this.layer.gl.CULL_FACE);
+      this.layer.gl.cullFace(this.layer.gl.FRONT);
+    }
+
     this.layer.gl.uniform4fv(this.layer.shader.diffuseColorUniform,
                              m.color);
     this.layer.gl.uniform3fv(this.layer.shader.ambientColorUniform,

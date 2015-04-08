@@ -278,8 +278,8 @@ var __initState = function() {
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
   __motionSelectedState();
-  __audioSelectedState();
   __videoGenerationCheckboxState();
+  __audioSelectedState();
 };
 
 
@@ -317,8 +317,8 @@ var __pmdFileLoadedState = function() {
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
   __motionSelectedState();
-  __audioSelectedState();
   __videoGenerationCheckboxState();
+  __audioSelectedState();
 };
 
 
@@ -338,8 +338,8 @@ var __vmdFileLoadedState = function() {
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
   __motionSelectedState();
-  __audioSelectedState();
   __videoGenerationCheckboxState();
+  __audioSelectedState();
 
   __audioSelect.disabled             = true;
 };
@@ -360,8 +360,8 @@ var __danceReadyState = function() {
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
   __motionSelectedState();
-  __audioSelectedState();
   __videoGenerationCheckboxState();
+  __audioSelectedState();
 
   __audioSelect.disabled             = true;
 };
@@ -399,7 +399,8 @@ var __audioSelectedState = function() {
     __runTypeSelect.options[2].selected = true;
     __runTypeSelect.disabled = true;
   } else {
-    __runTypeSelect.disabled = false;
+    if(! __videoGenerationCheckbox.checked)
+      __runTypeSelect.disabled = false;
   }
 
   if(__pmdFileLoaded) {

@@ -562,14 +562,15 @@ VMD.prototype.getLight = function() {
  * TODO: rename
  */
 VMD.prototype.getCalculatedCameraParams = function(eye, center, up) {
+  var yOffset = 0.0;
   var camera = this.getCamera();
 
   center[0] = camera.location[0];
-  center[1] = camera.location[1];
+  center[1] = camera.location[1]+yOffset;
   center[2] = camera.location[2];
 
   eye[0] = 0;
-  eye[1] = 0;
+  eye[1] = 0+yOffset;
   eye[2] = camera.length;
 
   up[0] = 0;
