@@ -233,6 +233,7 @@ var __fps_span = 60;
 
 
 // for dom operation
+var __canvas;
 var __loadModelButton;
 var __loadMotionButton;
 var __videoGenerationCheckbox;
@@ -263,6 +264,8 @@ var __selectedSkinning;
 var __selectedLighting;
 var __useWorkers = false;
 var __videoEncoder = null;
+var __isDragging = false;
+var __previousMousePosition = {x:0, y:0};
 
 
 var __putStatus = function(str) {
@@ -463,6 +466,14 @@ var __init = function() {
   __lightColorRange = document.getElementById('lightColorRange');
   __lightColorSpan = document.getElementById('lightColorSpan');
 
+  __canvas = document.getElementById('mainCanvas');
+  __canvas.onblur =  __mouseUpHandler;
+  __canvas.onmousedown = __mouseDownHandler;
+  __canvas.onmouseup = __mouseUpHandler;
+  __canvas.onmousemove = __mouseMoveHandler;
+  __canvas.oncontextmenu = __contextMenuHandler;
+  __canvas.addEventListener('mousewheel', __wheelHandler, false);
+
   __updateLightColorSpan();
 
   __initSelect(__modelSelect, __models);
@@ -567,8 +578,7 @@ var __imagesLoaded = function(pmd) {
   __pmdFileLoadedState();
   __pmdFileLoaded = true;
 
-  var canvas = document.getElementById('mainCanvas');
-  var layer = new Layer(canvas);
+  var layer = new Layer(__canvas);
 
   pmdView = new PMDView(layer, pmd, __worker); // TODO: temporal
   __pmdView = pmdView; // for console debug.
@@ -890,7 +900,6 @@ var __startVideoGeneration = function(output) {
 
 
 var __runStep = function(pmdView) {
-  __updateByKey(pmdView);
   if(! __useWorkers) {
     pmdView.update();
     pmdView.draw();
@@ -930,92 +939,59 @@ var __calculateFps = function() {
 };
 
 
-// TODO: temporal key handling
-var __keyMap = {
-  90: 1,
-  88: 2,
-  65: 3,
-  83: 4,
-  81: 5,
-  87: 6,
-  49: 7,
-  50: 8
-};
-
-var __keyFlags = [false, false, false, false,
-                  false, false, false, false];
-
-
-var __handleKeyDown = function(event) {
-  if(!pmdView)
+var __wheelHandler = function(e) {
+  if(! __pmdFileLoaded)
     return;
 
-  if(! __keyMap[event.keyCode])
-    return;
-
-  event.preventDefault();
-
-  __keyFlags[__keyMap[event.keyCode] - 1] = true;
+  var d = ((e.detail || e.wheelDelta) > 0) ? 1 : -1;
+  __pmdView.moveCameraForward(d);
+  e.preventDefault();
 };
 
 
-var __handleKeyUp = function(event) {
-  if(!pmdView)
+var __mouseDownHandler = function(e) {
+  if(! __pmdFileLoaded)
     return;
 
-  if(! __keyMap[event.keyCode])
-    return;
+  __isDragging = true;
 
-  event.preventDefault();
-
-  __keyFlags[__keyMap[event.keyCode] - 1] = false;
+  __previousMousePosition.x = e.clientX;
+  __previousMousePosition.y = e.clientY;
 };
 
 
-var __updateByKey = function(pmdView) {
-  var flag = 0;
-  if(__keyFlags[0]) {
-    pmdView.eye[0]--;
-    pmdView.center[0]--;
-    flag++;
-  }
-  if(__keyFlags[1]) {
-    pmdView.eye[0]++;
-    pmdView.center[0]++;
-    flag++;
-  }
-  if(__keyFlags[2]) {
-    pmdView.eye[1]--;
-    pmdView.center[1]--;
-    flag++;
-  }
-  if(__keyFlags[3]) {
-    pmdView.eye[1]++;
-    pmdView.center[1]++;
-    flag++;
-  }
-  if(__keyFlags[4]) {
-    pmdView.eye[2]--;
-    flag++;
-  }
-  if(__keyFlags[5]) {
-    pmdView.eye[2]++;
-    flag++;
-  }
-  if(__keyFlags[6]) {
-    pmdView.eye[0]--;
-    flag++;
-  }
-  if(__keyFlags[7]) {
-    pmdView.eye[0]++;
-    flag++;
-  }
-  return flag;
+var __mouseUpHandler = function(e) {
+  if(! __pmdFileLoaded)
+    return;
+
+  __isDragging = false;
 };
 
 
-window.onkeydown = function(event) { __handleKeyDown(event); } ;
-window.onkeyup = function(event) { __handleKeyUp(event); } ;
+var __contextMenuHandler = function(e) {
+  if(! __pmdFileLoaded)
+    return;
+
+  __pmdView.resetCameraMove();
+  e.preventDefault();
+};
+
+
+var __mouseMoveHandler = function(e) {
+  if(! __pmdFileLoaded)
+    return;
+
+  if(! __isDragging)
+    return;
+
+  var dx =  (__previousMousePosition.x - e.clientX) / __canvas.width;
+  var dy = -(__previousMousePosition.y - e.clientY) / __canvas.height;
+  __pmdView.moveCameraQuaternionByXY(dx, dy);
+  __previousMousePosition.x = e.clientX;
+  __previousMousePosition.y = e.clientY;
+};
+
+
 </script>
 </head>
 <body onload="__init()">

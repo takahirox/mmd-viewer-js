@@ -48,6 +48,9 @@ function PMDView(layer, pmd, worker) {
   this.center = [0, 0, 0];
   this.up = [0, 1, 0];
 
+  this.cameraQuaternion = [0, 0, 0, 1];
+  this.cameraDistance = 0;
+
   this.frame = 0;
   this.frameIndex = 0;
   this.baseFrame = 0;
@@ -258,6 +261,8 @@ PMDView.prototype.setEye = function(eye) {
   }
   this.center[0] = eye[0];
   this.center[1] = eye[1];
+
+  this.resetCameraMove();
 };
 
 
@@ -311,6 +316,48 @@ PMDView.prototype.setAudioType = function(type) {
 
 PMDView.prototype.setEdgeType = function(type) {
   this.edgeType = type;
+};
+
+
+PMDView.prototype.moveCameraQuaternion = function(q) {
+  this.quat4.multiply(this.cameraQuaternion, q, this.cameraQuaternion);
+};
+
+
+PMDView.prototype.moveCameraQuaternionByXY = function(dx, dy) {
+  var length = this.Math.sqrt(dx * dx + dy * dy);
+
+  if(length != 0.0) {
+    var radian = length * this.Math.PI;
+    var theta = this.Math.sin(radian) / length;
+    var q = this.quat4.create([dy * theta,
+                               dx * theta,
+                               0.0,
+                               this.Math.cos(radian)]);
+    this.moveCameraQuaternion(q);
+    return true;
+  }
+  return false;
+};
+
+
+PMDView.prototype.resetCameraMove = function() {
+  this.cameraDistance = 0;
+  this.cameraQuaternion[0] = 0;
+  this.cameraQuaternion[1] = 0;
+  this.cameraQuaternion[2] = 0;
+  this.cameraQuaternion[3] = 1;
+};
+
+
+PMDView.prototype.moveCameraForward = function(d) {
+  if(d > 0)
+    this.cameraDistance -= 10;
+  if(d < 0)
+    this.cameraDistance += 10;
+
+  if(this.cameraDistance <= -100)
+    this.cameraDistance = -99;
 };
 
 
@@ -702,12 +749,31 @@ PMDView.prototype._draw = function(texture, pos, num) {
 
   layer.perspective(angle, 0.1, 1000.0);
   layer.identity();
-  layer.lookAt(this.eye, this.center, this.up);
+
+  var eye = [0, 0, 0];
+  var center = [0, 0, 0];
+  var up = [0, 0, 0];
+  this._getCalculatedCameraParams(eye, center, up);
+  layer.lookAt(eye, center, up);
+//  layer.lookAt(this.eye, this.center, this.up);
 
   layer.draw(texture,
              layer._BLEND_ALPHA, num, pos);
 };
 
+
+PMDView.prototype._getCalculatedCameraParams = function(eye, center, up) {
+  this.vec3.set(this.eye, eye);
+  this.vec3.set(this.center, center);
+  this.vec3.set(this.up, up);
+  this.quat4.multiplyVec3(this.cameraQuaternion, eye, eye);
+  this.quat4.multiplyVec3(this.cameraQuaternion, up, up);
+  var d = [0, 0, 0];
+  this.vec3.subtract(eye, center, d);
+  eye[0] += d[0] * this.cameraDistance * 0.01;
+  eye[1] += d[1] * this.cameraDistance * 0.01;
+  eye[2] += d[2] * this.cameraDistance * 0.01;
+};
 
 
 /**
