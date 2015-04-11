@@ -85,20 +85,24 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
     return vec2(u, v);\
   }\
 \
+  vec4 getVTF(float index) {\
+    return texture2D(uVTF, getUV(index));\
+  }\
+\
   vec3 getMotionTranslation(float bn) {\
     float index = bn * 7.0 + 0.0;\
-    highp float x = binary32(texture2D(uVTF, getUV(index+0.0)));\
-    highp float y = binary32(texture2D(uVTF, getUV(index+1.0)));\
-    highp float z = binary32(texture2D(uVTF, getUV(index+2.0)));\
+    highp float x = binary32(getVTF(index+0.0));\
+    highp float y = binary32(getVTF(index+1.0));\
+    highp float z = binary32(getVTF(index+2.0));\
     return vec3(x, y, z);\
   }\
 \
   vec4 getMotionRotation(float bn) {\
     float index = bn * 7.0 + 3.0;\
-    highp float x = binary32(texture2D(uVTF, getUV(index+0.0)));\
-    highp float y = binary32(texture2D(uVTF, getUV(index+1.0)));\
-    highp float z = binary32(texture2D(uVTF, getUV(index+2.0)));\
-    highp float w = binary32(texture2D(uVTF, getUV(index+3.0)));\
+    highp float x = binary32(getVTF(index+0.0));\
+    highp float y = binary32(getVTF(index+1.0));\
+    highp float z = binary32(getVTF(index+2.0));\
+    highp float w = binary32(getVTF(index+3.0));\
     return vec4(x, y, z, w);\
   }\
 \
@@ -290,6 +294,13 @@ Layer.prototype._compileShader = function(gl, source, type) {
 
 Layer.prototype._initVertexShader = function(gl) {
   var params = this._SHADERS['shader-vs'];
+
+  // TODO: temporal workaround
+  if(this.gl.getParameter(this.gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) <= 0) {
+    params.src = params.src.replace('texture2D(uVTF, getUV(index))',
+                                    'vec4(0.0)');
+  }
+
   return this._compileShader(gl, params.src, params.type);
 };
 
