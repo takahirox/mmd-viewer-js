@@ -984,9 +984,15 @@ var __mouseMoveHandler = function(e) {
   if(! __isDragging)
     return;
 
-  var dx =  (__previousMousePosition.x - e.clientX) / __canvas.width;
-  var dy = -(__previousMousePosition.y - e.clientY) / __canvas.height;
-  __pmdView.moveCameraQuaternionByXY(dx, dy);
+  var dx = (__previousMousePosition.x - e.clientX) / __canvas.width;
+  var dy = (__previousMousePosition.y - e.clientY) / __canvas.height;
+
+  if(e.shiftKey) {
+    __pmdView.moveCameraTranslation(dx, dy);
+  } else {
+    __pmdView.moveCameraQuaternionByXY(dx, dy);
+  }
+
   __previousMousePosition.x = e.clientX;
   __previousMousePosition.y = e.clientY;
 };

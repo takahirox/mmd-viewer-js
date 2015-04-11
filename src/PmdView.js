@@ -48,6 +48,7 @@ function PMDView(layer, pmd, worker) {
   this.center = [0, 0, 0];
   this.up = [0, 1, 0];
 
+  this.cameraTranslation = [0, 0, 0];
   this.cameraQuaternion = [0, 0, 0, 1];
   this.cameraDistance = 0;
 
@@ -325,6 +326,8 @@ PMDView.prototype.moveCameraQuaternion = function(q) {
 
 
 PMDView.prototype.moveCameraQuaternionByXY = function(dx, dy) {
+  dy = -dy;
+
   var length = this.Math.sqrt(dx * dx + dy * dy);
 
   if(length != 0.0) {
@@ -341,8 +344,20 @@ PMDView.prototype.moveCameraQuaternionByXY = function(dx, dy) {
 };
 
 
+PMDView.prototype.moveCameraTranslation = function(dx, dy) {
+  dx = -dx;
+  dy = -dy;
+
+  this.cameraTranslation[0] += dx * 50;
+  this.cameraTranslation[1] += dy * 50;
+};
+
+
 PMDView.prototype.resetCameraMove = function() {
   this.cameraDistance = 0;
+  this.cameraTranslation[0] = 0;
+  this.cameraTranslation[1] = 0;
+  this.cameraTranslation[2] = 0;
   this.cameraQuaternion[0] = 0;
   this.cameraQuaternion[1] = 0;
   this.cameraQuaternion[2] = 0;
@@ -768,6 +783,14 @@ PMDView.prototype._getCalculatedCameraParams = function(eye, center, up) {
   this.vec3.set(this.up, up);
   this.quat4.multiplyVec3(this.cameraQuaternion, eye, eye);
   this.quat4.multiplyVec3(this.cameraQuaternion, up, up);
+
+  var t = [0, 0, 0];
+  this.vec3.set(this.cameraTranslation, t);
+  this.quat4.multiplyVec3(this.cameraQuaternion, t, t);
+
+  this.vec3.add(eye, t, eye);
+  this.vec3.add(center, t, center);
+
   var d = [0, 0, 0];
   this.vec3.subtract(eye, center, d);
   eye[0] += d[0] * this.cameraDistance * 0.01;
