@@ -103,6 +103,17 @@ var __motions = [
    eye:  [0, 10, -22],
    music: {url : __musicBaseURL + '/melt.mp3',
            offset: 0}},
+  {name: 'Nekomimi Switch',
+   url:  [__motionBaseURL + '/nekomimi_switch_mikuv2.vmd',
+          __motionBaseURL + '/nekomimi_switch_camera.vmd'],
+   eye:  [0, 10, -22],
+   music: {url : __musicBaseURL + '/nekomimi_switch.mp3',
+           offset: 0}},
+  {name: 'Nyanyanya',
+   url:  [__motionBaseURL + '/nya.vmd'],
+   eye:  [0, 10, -22],
+   music: {url : __musicBaseURL + '/nya.mp3',
+           offset: 0}},
   {name: 'Senbon Zakura',
    url:  [__motionBaseURL + '/senbonzakura.vmd',
           __motionBaseURL + '/senbonzakura_camera.vmd'],
@@ -216,6 +227,19 @@ var __lightings = [
 ];
 
 
+var __effects = [
+  {name: 'Post effect OFF',
+   value: PMDView._EFFECT_OFF,
+   selected: true},
+  {name: 'Blur',
+   value: PMDView._EFFECT_BLUR},
+  {name: 'Gaussian Blur',
+   value: PMDView._EFFECT_GAUSSIAN},
+  {name: 'Diffusion Blur',
+   value: PMDView._EFFECT_DIFFUSION},
+];
+
+
 // for console debug
 // TODO: but some of them are used for work
 //       they should be used only for console debug
@@ -245,6 +269,7 @@ var __ikSelect;
 var __morphSelect;
 var __sphereMapSelect;
 var __runTypeSelect;
+var __effectSelect;
 var __edgeSelect;
 var __skinningSelect;
 var __lightingSelect;
@@ -287,6 +312,7 @@ var __initState = function() {
   __morphSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
+  __effectSelect.disabled            = false;
   __edgeSelect.disabled              = false;
   __skinningSelect.disabled          = false;
   __lightingSelect.disabled          = false;
@@ -310,6 +336,7 @@ var __loadingFileState = function() {
   __morphSelect.disabled             = true;
   __sphereMapSelect.disabled         = true;
   __runTypeSelect.disabled           = true;
+  __effectSelect.disabled            = true;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = true;
   __lightColorRange.disabled         = true;
@@ -329,6 +356,7 @@ var __pmdFileLoadedState = function() {
   __morphSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
+  __effectSelect.disabled            = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
@@ -351,6 +379,7 @@ var __vmdFileLoadedState = function() {
   __morphSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
+  __effectSelect.disabled            = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
@@ -374,6 +403,7 @@ var __danceReadyState = function() {
   __morphSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
+  __effectSelect.disabled            = false;
   __skinningSelect.disabled          = true;
   __lightingSelect.disabled          = false;
   __lightColorRange.disabled         = false;
@@ -459,6 +489,7 @@ var __init = function() {
   __ikSelect = document.getElementById('ikSelect');
   __morphSelect = document.getElementById('morphSelect');
   __sphereMapSelect = document.getElementById('sphereMapSelect');
+  __effectSelect = document.getElementById('effectSelect');
   __runTypeSelect = document.getElementById('runTypeSelect');
   __edgeSelect = document.getElementById('edgeSelect');
   __skinningSelect = document.getElementById('skinningSelect');
@@ -484,6 +515,7 @@ var __init = function() {
   __initSelect(__morphSelect, __morphs);
   __initSelect(__sphereMapSelect, __sphereMaps);
   __initSelect(__runTypeSelect, __runTypes);
+  __initSelect(__effectSelect, __effects);
   __initSelect(__edgeSelect, __edges);
   __initSelect(__skinningSelect, __skinnings);
   __initSelect(__lightingSelect, __lightings);
@@ -589,6 +621,7 @@ var __imagesLoaded = function(pmd) {
   __setMorphType(pmdView);
   __setSphereMapType(pmdView);
   __setRunType(pmdView);
+  __setEffectFlag(pmdView);
   __setEdgeType(pmdView);
   __setSkinningType(pmdView);
   __setLightingType(pmdView);
@@ -749,6 +782,12 @@ var __runTypeSelectChanged = function() {
 };
 
 
+var __effectSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setEffectFlag(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
 var __edgeSelectChanged = function() {
   if(__pmdFileLoaded)
     __setEdgeType(__pmdView);  // TODO: has accessed __pmdView
@@ -819,6 +858,12 @@ var __setSphereMapType = function(pmdView) {
 var __setRunType = function(pmdView) {
   var index = parseInt(__runTypeSelect.value);
   pmdView.setRunType(__runTypes[index].value);
+};
+
+
+var __setEffectFlag = function(pmdView) {
+  var index = parseInt(__effectSelect.value);
+  pmdView.setEffectFlag(__effects[index].value);
 };
 
 
@@ -1041,6 +1086,7 @@ generate a video
 <select id="edgeSelect" onchange="__edgeSelectChanged()"></select>
 <select id="skinningSelect" onchange="__skinningSelectChanged()"></select>
 <select id="runTypeSelect"  onchange="__runTypeSelectChanged()"></select>
+<select id="effectSelect"  onchange="__effectSelectChanged()"></select>
 <br />
 <select id="lightingSelect" onchange="__lightingSelectChanged()"></select>
 Light <!--Color-->Strength

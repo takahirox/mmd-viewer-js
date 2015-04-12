@@ -1,3 +1,6 @@
+/**
+ * TODO: refactoring
+ */
 function PMDView(layer, pmd, worker) {
   this.layer = layer;
   this.pmd = pmd;
@@ -94,6 +97,7 @@ function PMDView(layer, pmd, worker) {
   this.sphereMapType = null;
   this.lightColor = null;
   this.runType = null;
+  this.effectFlag = null;
   this.audioType = null;
 
   this.elapsedTime = 0.0;
@@ -105,6 +109,7 @@ function PMDView(layer, pmd, worker) {
   this.setSphereMapType(this._SPHERE_MAP_ON);
   this.setEdgeType(this._EDGE_ON);
   this.setRunType(this._RUN_FRAME_ORIENTED);
+  this.setEffectFlag(this._EFFECT_OFF);
   this.setAudioType(this._AUDIO_ON);
   this.setLightColor(1.0);
 };
@@ -113,6 +118,7 @@ function PMDView(layer, pmd, worker) {
 PMDView.prototype.Math = Math;
 PMDView.prototype.vec3 = vec3;
 PMDView.prototype.quat4 = quat4;
+PMDView.prototype.mat4 = mat4;
 
 PMDView.prototype._V_ITEM_SIZE  = 3;
 PMDView.prototype._C_ITEM_SIZE  = 2;
@@ -160,6 +166,11 @@ PMDView.prototype._AUDIO_ON  = 1;
 PMDView.prototype._EDGE_OFF = 0;
 PMDView.prototype._EDGE_ON  = 1;
 
+PMDView.prototype._EFFECT_OFF       = 0x0;
+PMDView.prototype._EFFECT_BLUR      = 0x1;
+PMDView.prototype._EFFECT_GAUSSIAN  = 0x2;
+PMDView.prototype._EFFECT_DIFFUSION = 0x4;
+
 PMDView._PHYSICS_OFF        = PMDView.prototype._PHYSICS_OFF;
 PMDView._PHYSICS_ON         = PMDView.prototype._PHYSICS_ON;
 PMDView._PHYSICS_WORKERS_ON = PMDView.prototype._PHYSICS_WORKERS_ON;
@@ -190,6 +201,11 @@ PMDView._AUDIO_ON  = PMDView.prototype._AUDIO_ON  = 1;
 
 PMDView._EDGE_OFF = PMDView.prototype._EDGE_OFF;
 PMDView._EDGE_ON  = PMDView.prototype._EDGE_ON;
+
+PMDView._EFFECT_OFF       = PMDView.prototype._EFFECT_OFF;
+PMDView._EFFECT_BLUR      = PMDView.prototype._EFFECT_BLUR;
+PMDView._EFFECT_GAUSSIAN  = PMDView.prototype._EFFECT_GAUSSIAN;
+PMDView._EFFECT_DIFFUSION = PMDView.prototype._EFFECT_DIFFUSION;
 
 
 PMDView.prototype.setup = function() {
@@ -307,6 +323,14 @@ PMDView.prototype.setSphereMapType = function(type) {
 
 PMDView.prototype.setRunType = function(type) {
   this.runType = type;
+};
+
+
+/**
+ * TODO: override so far
+ */
+PMDView.prototype.setEffectFlag = function(flag) {
+  this.effectFlag = flag;
 };
 
 
@@ -697,54 +721,67 @@ PMDView.prototype._bindBuffers = function() {
   var shader = this.layer.shader;
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vBuffer);
+  gl.enableVertexAttribArray(shader.vertexPositionAttribute);
   gl.vertexAttribPointer(shader.vertexPositionAttribute,
                          this.vBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vBuffer1);
+  gl.enableVertexAttribArray(shader.vertexPositionAttribute1);
   gl.vertexAttribPointer(shader.vertexPositionAttribute1,
                          this.vBuffer1.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vBuffer2);
+  gl.enableVertexAttribArray(shader.vertexPositionAttribute2);
   gl.vertexAttribPointer(shader.vertexPositionAttribute2,
                          this.vBuffer2.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vmBuffer);
+  gl.enableVertexAttribArray(shader.vertexMorphAttribute);
   gl.vertexAttribPointer(shader.vertexMorphAttribute,
                          this.vmBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.cBuffer);
+  gl.enableVertexAttribArray(shader.textureCoordAttribute);
   gl.vertexAttribPointer(shader.textureCoordAttribute,
                          this.cBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.bwBuffer);
+  gl.enableVertexAttribArray(shader.boneWeightAttribute);
   gl.vertexAttribPointer(shader.boneWeightAttribute,
                          this.bwBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.biBuffer);
+  gl.enableVertexAttribArray(shader.boneIndicesAttribute);
   gl.vertexAttribPointer(shader.boneIndicesAttribute,
                          this.biBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vnBuffer);
+  gl.enableVertexAttribArray(shader.vertexNormalAttribute);
   gl.vertexAttribPointer(shader.vertexNormalAttribute,
                          this.vnBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.veBuffer);
+  gl.enableVertexAttribArray(shader.vertexEdgeAttribute);
   gl.vertexAttribPointer(shader.vertexEdgeAttribute,
                          this.veBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.mtBuffer1);
+  gl.enableVertexAttribArray(shader.motionTranslationAttribute1);
   gl.vertexAttribPointer(shader.motionTranslationAttribute1,
                          this.mtBuffer1.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.mtBuffer2);
+  gl.enableVertexAttribArray(shader.motionTranslationAttribute2);
   gl.vertexAttribPointer(shader.motionTranslationAttribute2,
                          this.mtBuffer2.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.mrBuffer1);
+  gl.enableVertexAttribArray(shader.motionRotationAttribute1);
   gl.vertexAttribPointer(shader.motionRotationAttribute1,
                          this.mrBuffer1.itemSize, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.mrBuffer2);
+  gl.enableVertexAttribArray(shader.motionRotationAttribute2);
   gl.vertexAttribPointer(shader.motionRotationAttribute2,
                          this.mrBuffer2.itemSize, gl.FLOAT, false, 0, 0);
 
@@ -899,13 +936,50 @@ PMDView.prototype.update = function() {
 
 
 /**
- * TODO: temporal
+ * TODO: multiple post effect support.
  * TODO: optimize
  */
 PMDView.prototype.draw = function() {
   if(this.dframe == 0)
     return;
 
+  var layer = this.layer;
+  var gl = layer.gl;
+  var shader = layer.shader;
+
+  var postEffect =
+   (this.effectFlag & this._EFFECT_BLUR)      ? layer.postEffects['blur'] :
+   (this.effectFlag & this._EFFECT_GAUSSIAN)  ? layer.postEffects['gaussian'] :
+   (this.effectFlag & this._EFFECT_DIFFUSION) ? layer.postEffects['diffusion'] :
+                                                null;
+
+  var postShader = (postEffect === null) ? null : postEffect.shader;
+
+  if(this.effectFlag != this._EFFECT_OFF) {
+    postEffect.bindFrameBufferForScene();
+  } else {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  this._drawMain();
+
+  if(this.effectFlag != this._EFFECT_OFF) {
+    gl.useProgram(postShader);
+    postEffect.draw();
+    gl.useProgram(shader);
+  }
+};
+
+
+/**
+ * TODO: temporal
+ * TODO: optimize
+ */
+PMDView.prototype._drawMain = function() {
+  var gl = this.layer.gl;
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  this._bindBuffers();
   this._initMotionArrays();
 
   // TODO: temporal
@@ -982,8 +1056,10 @@ PMDView.prototype.draw = function() {
     offset += num;
   }
 
-  if(this.edgeType == this._EDGE_OFF)
+  if(this.edgeType == this._EDGE_OFF) {
+    this.layer.gl.flush();
     return;
+  }
 
   this.layer.gl.uniform1i(this.layer.shader.edgeUniform, 1);
   this.layer.gl.uniform1i(this.layer.shader.useToonUniform, 0);
@@ -997,6 +1073,8 @@ PMDView.prototype.draw = function() {
       this._draw(this.textures[i], offset, num);
     offset += num;
   }
+
+  this.layer.gl.flush();
 };
 
 

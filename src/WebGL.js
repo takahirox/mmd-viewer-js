@@ -1,16 +1,20 @@
 function Layer(canvas) {
   this.canvas = canvas;
   this.gl = this._initGl(canvas);
-  this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
   this.shader = this._initShader(this.gl);
+  this.postEffects = {};
   this.mvMatrix = mat4.create();
   this.pMatrix = mat4.create();
   this.textureID = 0;
   this.lightDirection = [-30, 100, 50]; // TODO: temporal
   this.camera = null;
+  this._initPostEffects();
 };
 
-Layer.prototype.mat4 = mat4; // only for reference.
+// only for reference.
+Layer.prototype.mat4 = mat4;
+Layer.prototype.Math = Math;
 
 Layer.prototype._NAMES = ['webgl', 'experimental-webgl'];
 
@@ -267,11 +271,11 @@ Layer.prototype._compileShaderFromDOM = function(gl, id) {
     currentChild = currentChild.nextSibling;
   }
 
-  return this._compileShader(gl, source, script.type);
+  return this.compileShader(gl, source, script.type);
 };
 
 
-Layer.prototype._compileShader = function(gl, source, type) {
+Layer.prototype.compileShader = function(gl, source, type) {
   var shader;
   if(type == 'x-shader/x-fragment') {
     shader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -301,13 +305,13 @@ Layer.prototype._initVertexShader = function(gl) {
                                     'vec4(0.0)');
   }
 
-  return this._compileShader(gl, params.src, params.type);
+  return this.compileShader(gl, params.src, params.type);
 };
 
 
 Layer.prototype._initFragmentShader = function(gl) {
   var params = this._SHADERS['shader-fs'];
-  return this._compileShader(gl, params.src, params.type);
+  return this.compileShader(gl, params.src, params.type);
 };
 
 
@@ -328,49 +332,32 @@ Layer.prototype._initShader = function(gl) {
 
   shader.vertexPositionAttribute =
     gl.getAttribLocation(shader, 'aVertexPosition');
-  gl.enableVertexAttribArray(shader.vertexPositionAttribute);
   shader.vertexPositionAttribute1 =
     gl.getAttribLocation(shader, 'aVertexPosition1');
-  gl.enableVertexAttribArray(shader.vertexPositionAttribute1);
   shader.vertexPositionAttribute2 =
     gl.getAttribLocation(shader, 'aVertexPosition2');
-  gl.enableVertexAttribArray(shader.vertexPositionAttribute2);
   shader.vertexMorphAttribute =
     gl.getAttribLocation(shader, 'aVertexMorph');
-  gl.enableVertexAttribArray(shader.vertexMorphAttribute);
   shader.vertexEdgeAttribute =
     gl.getAttribLocation(shader, 'aVertexEdge');
-  gl.enableVertexAttribArray(shader.vertexEdgeAttribute);
+  shader.vertexNormalAttribute =
+    gl.getAttribLocation(shader, 'aVertexNormal');
+  shader.boneWeightAttribute =
+    gl.getAttribLocation(shader, 'aBoneWeight');
+  shader.boneIndicesAttribute =
+    gl.getAttribLocation(shader, 'aBoneIndices');
 
   shader.motionTranslationAttribute1 =
     gl.getAttribLocation(shader, 'aMotionTranslation1');
-  gl.enableVertexAttribArray(shader.motionTranslationAttribute1);
   shader.motionTranslationAttribute2 =
     gl.getAttribLocation(shader, 'aMotionTranslation2');
-  gl.enableVertexAttribArray(shader.motionTranslationAttribute2);
-
   shader.motionRotationAttribute1 =
     gl.getAttribLocation(shader, 'aMotionRotation1');
-  gl.enableVertexAttribArray(shader.motionRotationAttribute1);
   shader.motionRotationAttribute2 =
     gl.getAttribLocation(shader, 'aMotionRotation2');
-  gl.enableVertexAttribArray(shader.motionRotationAttribute2);
 
   shader.textureCoordAttribute = 
     gl.getAttribLocation(shader, 'aTextureCoordinates');
-  gl.enableVertexAttribArray(shader.textureCoordAttribute);
-
-  shader.boneWeightAttribute =
-    gl.getAttribLocation(shader, 'aBoneWeight');
-  gl.enableVertexAttribArray(shader.boneWeightAttribute);
-
-  shader.boneIndicesAttribute =
-    gl.getAttribLocation(shader, 'aBoneIndices');
-  gl.enableVertexAttribArray(shader.boneIndicesAttribute);
-
-  shader.vertexNormalAttribute =
-    gl.getAttribLocation(shader, 'aVertexNormal');
-  gl.enableVertexAttribArray(shader.vertexNormalAttribute);
 
   shader.pMatrixUniform =
     gl.getUniformLocation(shader, 'uPMatrix');
@@ -424,6 +411,13 @@ Layer.prototype._initShader = function(gl) {
 
   return shader;
 }
+
+
+Layer.prototype._initPostEffects = function() {
+  this.postEffects['blur']      = new BlurEffect(this);
+  this.postEffects['gaussian']  = new GaussianBlurEffect(this);
+  this.postEffects['diffusion'] = new DiffusionBlurEffect(this);
+};
 
 
 Layer.prototype.setMatrixUniforms = function(gl) {
@@ -586,4 +580,596 @@ Layer.prototype.calculateVTFWidth = function(num) {
     val = val * 2;
   }
   return val;
+};
+
+
+
+function PostEffect(layer, pathNum) {
+  this.layer = layer;
+  this.shader = null;
+  this.pathNum = pathNum;
+  this._init();
+};
+
+// for reference
+PostEffect.prototype.Math = Math;
+PostEffect.prototype.mat4 = mat4;
+PostEffect.prototype.vec3 = vec3;
+PostEffect.prototype.quat4 = quat4;
+
+
+PostEffect.prototype._VSHADER = {};
+PostEffect.prototype._VSHADER.type = 'x-shader/x-vertex';
+PostEffect.prototype._VSHADER.src = '\
+  attribute vec3 aPosition;\
+  uniform   mat4 uMvpMatrix;\
+\
+  void main() {\
+    gl_Position = uMvpMatrix * vec4(aPosition, 1.0);\
+  }\
+';
+
+PostEffect.prototype._FSHADER = {};
+PostEffect.prototype._FSHADER.type = 'x-shader/x-fragment';
+PostEffect.prototype._FSHADER.src = '\
+  precision mediump float;\
+  uniform float uWidth;\
+  uniform float uHeight;\
+  uniform sampler2D uSampler;\
+  uniform sampler2D uSampler2;\
+\
+  void main() {\
+    vec2 ts = vec2(1.0 / uWidth, 1.0 / uHeight);\
+    vec4 color = texture2D(uSampler, gl_FragCoord.st * ts);\
+    gl_FragColor = color;\
+  }\
+';
+
+
+PostEffect.prototype._init = function() {
+  var gl = this.layer.gl;
+  this.shader = this._initShader(gl);
+  this._initAttributes(this.shader, gl);
+  this._initUniforms(this.shader, gl);
+  this._initBuffers(this.shader, gl);
+  this._initWidthHeight(this.shader, gl);
+  this._initMatrices(this.shader, gl);
+  this._initParams(this.shader, gl);
+  this._initFrameBuffers(this.shader, gl);
+};
+
+
+PostEffect.prototype._initShader = function(gl) {
+  var vertexShader = this._compileShader(this._VSHADER);
+  var fragmentShader = this._compileShader(this._FSHADER);
+
+  var shader = gl.createProgram();
+  gl.attachShader(shader, vertexShader);
+  gl.attachShader(shader, fragmentShader);
+  gl.linkProgram(shader);
+
+  if(!gl.getProgramParameter(shader, gl.LINK_STATUS)) {
+    alert("Failed to setup shaders");
+  }
+
+  return shader;
+};
+
+
+PostEffect.prototype._initAttributes = function(shader, gl) {
+  shader.positionAttribute =
+    gl.getAttribLocation(shader, 'aPosition');
+};
+
+
+PostEffect.prototype._initUniforms = function(shader, gl) {
+  shader.mvpMatrixUniformLocation =
+    gl.getUniformLocation(shader, 'uMvpMatrix');
+  shader.widthUniformLocation =
+    gl.getUniformLocation(shader, 'uWidth');
+  shader.heightUniformLocation =
+    gl.getUniformLocation(shader, 'uHeight');
+  shader.samplerUniformLocation =
+    gl.getUniformLocation(shader, 'uSampler');
+  shader.sampler2UniformLocation =
+    gl.getUniformLocation(shader, 'uSampler2');
+};
+
+
+PostEffect.prototype._initBuffers = function(shader, gl) {
+  var positions = [
+    -1.0,  1.0,  0.0,
+     1.0,  1.0,  0.0,
+    -1.0, -1.0,  0.0,
+     1.0, -1.0,  0.0
+  ];
+
+  var indices = [
+    0, 1, 2,
+    3, 2, 1
+  ];
+
+  var pBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, pBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+  var iBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuffer);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices),
+                gl.STATIC_DRAW);
+
+  shader.pBuffer = pBuffer;
+  shader.iBuffer = iBuffer;
+};
+
+
+PostEffect.prototype._initWidthHeight = function(shader, gl) {
+  shader.width = this.layer.canvas.width;
+  shader.height = this.layer.canvas.height;
+};
+
+
+PostEffect.prototype._initMatrices = function(shader, gl) {
+  var mMatrix = this.mat4.create();
+  var vMatrix = this.mat4.create();
+  var pMatrix = this.mat4.create();
+  var vpMatrix = this.mat4.create();
+  var mvpMatrix = this.mat4.create();
+
+  this.mat4.lookAt([0.0, 0.0, 0.5], [0.0, 0.0, 0.0], [0, 1, 0], vMatrix);
+  this.mat4.ortho(-1.0, 1.0, 1.0, -1.0, 0.1, 1, pMatrix);
+  this.mat4.multiply(pMatrix, vMatrix, vpMatrix);
+  this.mat4.identity(mMatrix);
+  this.mat4.multiply(vpMatrix, mMatrix, mvpMatrix);
+
+  shader.mvpMatrix = mvpMatrix;
+};
+
+
+PostEffect.prototype._initFrameBuffers = function(shader, gl) {
+  shader.pathNum = this.pathNum;
+  shader.frameBuffers = [];
+  for(var i = 0; i < shader.pathNum; i++) {
+    shader.frameBuffers.push(this._createFrameBuffer(shader, gl));
+  }
+};
+
+
+PostEffect.prototype._createFrameBuffer = function(shader, gl) {
+  var width = shader.width;
+  var height = shader.height;
+
+  var frameBuffer = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+
+  var depthRenderBuffer = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderBuffer);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+                             gl.RENDERBUFFER, depthRenderBuffer);
+
+  var fTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, fTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height,
+                0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                          gl.TEXTURE_2D, fTexture, 0);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  return {f: frameBuffer, d: depthRenderBuffer, t: fTexture};
+};
+
+
+/**
+ * override in child class
+ */
+PostEffect.prototype._initParams = function(shader, gl) {
+};
+
+
+PostEffect.prototype._compileShader = function(params) {
+  return this.layer.compileShader(this.layer.gl, params.src, params.type);
+};
+
+
+/**
+ * from: http://wgld.org/d/webgl/w057.html
+ */
+PostEffect.prototype._getGaussianWeight = function(array, length, strength) {
+  var t = 0.0;
+  var d = strength * strength / 100;
+  for(i = 0; i < length; i++){
+    var r = 1.0 + 2.0 * i;
+    var w = this.Math.exp(-0.5 * (r * r) / d);
+    array[i] = w;
+    if(i > 0)
+      w *= 2.0;
+    t += w;
+  }
+  for(i = 0; i < length; i++){
+    array[i] /= t;
+  }
+};
+
+
+PostEffect.prototype._bindAttributes = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, shader.pBuffer);
+  gl.enableVertexAttribArray(shader.positionAttribute);
+  gl.vertexAttribPointer(shader.positionAttribute,
+                         3, gl.FLOAT, false, 0, 0);
+};
+
+
+PostEffect.prototype._bindIndices = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shader.iBuffer);
+};
+
+
+PostEffect.prototype._setUniforms = function(n) {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+  gl.uniformMatrix4fv(shader.mvpMatrixUniformLocation, false, shader.mvpMatrix);
+  gl.uniform1f(shader.widthUniformLocation, shader.width);
+  gl.uniform1f(shader.heightUniformLocation, shader.height);
+};
+
+
+PostEffect.prototype.bindFrameBufferForScene = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, shader.frameBuffers[0].f);
+};
+
+
+PostEffect.prototype._bindFrameBuffer = function(n) {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+  var f = (shader.pathNum-1 == n) ? null : shader.frameBuffers[n+1].f;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+};
+
+
+PostEffect.prototype._bindFrameTextures = function(n) {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, shader.frameBuffers[n].t);
+  gl.uniform1i(shader.samplerUniformLocation, 0);
+
+  if(shader.sampler2UniformLocation === null)
+    return;
+
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, shader.frameBuffers[0].t);
+  gl.uniform1i(shader.sampler2UniformLocation, 1);
+};
+
+
+PostEffect.prototype._enableConditions = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  gl.enable(gl.BLEND);
+  gl.disable(gl.CULL_FACE);
+  gl.cullFace(gl.FRONT);
+};
+
+
+PostEffect.prototype._draw = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+  gl.flush();
+};
+
+
+PostEffect.prototype.draw = function() {
+  for(var i = 0; i < this.shader.pathNum; i++) {
+    this._bindFrameBuffer(i);
+    this._bindAttributes();
+    this._setUniforms(i);
+    this._bindIndices();
+    this._bindFrameTextures(i);
+    this._enableConditions();
+    this._draw();
+  }
+};
+
+
+
+function BlurEffect(layer) {
+  this.parent = PostEffect;
+  this.parent.call(this, layer, 1);
+};
+__inherit(BlurEffect, PostEffect);
+
+
+/* from http://wgld.org/d/webgl/w041.html */
+BlurEffect.prototype._FSHADER = {};
+BlurEffect.prototype._FSHADER.type = 'x-shader/x-fragment';
+BlurEffect.prototype._FSHADER.src = '\
+  precision mediump float;\
+  uniform float uWidth;\
+  uniform float uHeight;\
+  uniform sampler2D uSampler;\
+  uniform sampler2D uSampler2;\
+\
+  void main() {\
+    vec2 st = vec2(1.0 / uWidth, 1.0 / uHeight);\
+    vec4 color = texture2D(uSampler, gl_FragCoord.st * st);\
+    color *= 0.72;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-1.0,  1.0)) * st)\
+                        * 0.02;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 0.0,  1.0)) * st)\
+                        * 0.02;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 1.0,  1.0)) * st)\
+                        * 0.02;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-1.0,  0.0)) * st)\
+                        * 0.02;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 1.0,  0.0)) * st)\
+                        * 0.02;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-1.0, -1.0)) * st)\
+                        * 0.02;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 0.0, -1.0)) * st)\
+                        * 0.02;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 1.0, -1.0)) * st)\
+                        * 0.02;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-2.0,  2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-1.0,  2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 0.0,  2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 1.0,  2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 2.0,  2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-2.0,  1.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 2.0,  1.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-2.0,  0.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 2.0,  0.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-2.0, -1.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 2.0, -1.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-2.0, -2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2(-1.0, -2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 0.0, -2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 1.0, -2.0)) * st)\
+                        * 0.01;\
+    color += texture2D(uSampler, (gl_FragCoord.st + vec2( 2.0, -2.0)) * st)\
+                        * 0.01;\
+    gl_FragColor = color;\
+  }\
+';
+
+
+
+function GaussianBlurEffect(layer) {
+  this.parent = PostEffect;
+  this.parent.call(this, layer, 2);
+};
+__inherit(GaussianBlurEffect, PostEffect);
+
+GaussianBlurEffect.prototype._FSHADER = {};
+GaussianBlurEffect.prototype._FSHADER.type = 'x-shader/x-fragment';
+// from: http://wgld.org/d/webgl/w057.html
+GaussianBlurEffect.prototype._FSHADER.src = '\
+  precision mediump float;\
+  uniform float uWidth;\
+  uniform float uHeight;\
+  uniform sampler2D uSampler;\
+  uniform sampler2D uSampler2;\
+  uniform float     uWeight[10];\
+  uniform bool      uIsX;\
+\
+void main(void){\
+  vec2 st = vec2(1.0/uWidth, 1.0/uHeight);\
+  vec2 fc = gl_FragCoord.st;\
+  vec4 color = vec4(0.0);\
+\
+  if(uIsX){\
+    color += texture2D(uSampler, (fc + vec2(-9.0, 0.0)) * st) * uWeight[9];\
+    color += texture2D(uSampler, (fc + vec2(-8.0, 0.0)) * st) * uWeight[8];\
+    color += texture2D(uSampler, (fc + vec2(-7.0, 0.0)) * st) * uWeight[7];\
+    color += texture2D(uSampler, (fc + vec2(-6.0, 0.0)) * st) * uWeight[6];\
+    color += texture2D(uSampler, (fc + vec2(-5.0, 0.0)) * st) * uWeight[5];\
+    color += texture2D(uSampler, (fc + vec2(-4.0, 0.0)) * st) * uWeight[4];\
+    color += texture2D(uSampler, (fc + vec2(-3.0, 0.0)) * st) * uWeight[3];\
+    color += texture2D(uSampler, (fc + vec2(-2.0, 0.0)) * st) * uWeight[2];\
+    color += texture2D(uSampler, (fc + vec2(-1.0, 0.0)) * st) * uWeight[1];\
+    color += texture2D(uSampler, (fc + vec2( 0.0, 0.0)) * st) * uWeight[0];\
+    color += texture2D(uSampler, (fc + vec2( 1.0, 0.0)) * st) * uWeight[1];\
+    color += texture2D(uSampler, (fc + vec2( 2.0, 0.0)) * st) * uWeight[2];\
+    color += texture2D(uSampler, (fc + vec2( 3.0, 0.0)) * st) * uWeight[3];\
+    color += texture2D(uSampler, (fc + vec2( 4.0, 0.0)) * st) * uWeight[4];\
+    color += texture2D(uSampler, (fc + vec2( 5.0, 0.0)) * st) * uWeight[5];\
+    color += texture2D(uSampler, (fc + vec2( 6.0, 0.0)) * st) * uWeight[6];\
+    color += texture2D(uSampler, (fc + vec2( 7.0, 0.0)) * st) * uWeight[7];\
+    color += texture2D(uSampler, (fc + vec2( 8.0, 0.0)) * st) * uWeight[8];\
+    color += texture2D(uSampler, (fc + vec2( 9.0, 0.0)) * st) * uWeight[9];\
+  }else{\
+    color += texture2D(uSampler, (fc + vec2(0.0, -9.0)) * st) * uWeight[9];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -8.0)) * st) * uWeight[8];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -7.0)) * st) * uWeight[7];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -6.0)) * st) * uWeight[6];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -5.0)) * st) * uWeight[5];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -4.0)) * st) * uWeight[4];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -3.0)) * st) * uWeight[3];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -2.0)) * st) * uWeight[2];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -1.0)) * st) * uWeight[1];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  0.0)) * st) * uWeight[0];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  1.0)) * st) * uWeight[1];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  2.0)) * st) * uWeight[2];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  3.0)) * st) * uWeight[3];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  4.0)) * st) * uWeight[4];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  5.0)) * st) * uWeight[5];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  6.0)) * st) * uWeight[6];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  7.0)) * st) * uWeight[7];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  8.0)) * st) * uWeight[8];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  9.0)) * st) * uWeight[9];\
+  }\
+  gl_FragColor = color;\
+}\
+';
+
+
+GaussianBlurEffect.prototype._initUniforms = function(shader, gl) {
+  this.parent.prototype._initUniforms.call(this, shader, gl);
+
+  shader.isXUniformLocation =
+    gl.getUniformLocation(shader, 'uIsX');
+  shader.weightUniformLocation =
+    gl.getUniformLocation(shader, 'uWeight');
+};
+
+
+GaussianBlurEffect.prototype._initParams = function(shader, gl) {
+  this.parent.prototype._initParams.call(this, shader, gl);
+
+  var weight = [];
+  this._getGaussianWeight(weight, 10, 25);
+  shader.weight = weight;
+};
+
+
+__copyParentMethod(GaussianBlurEffect, PostEffect, '_setUniforms');
+GaussianBlurEffect.prototype._setUniforms = function(n) {
+  this.PostEffect_setUniforms(n);
+
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  gl.uniform1fv(shader.weightUniformLocation, shader.weight);
+  gl.uniform1i(shader.isXUniformLocation, n == 0 ? 1 : 0);
+};
+
+
+
+
+function DiffusionBlurEffect(layer) {
+  this.parent = PostEffect;
+  this.parent.call(this, layer, 2);
+};
+__inherit(DiffusionBlurEffect, PostEffect);
+
+
+DiffusionBlurEffect.prototype._FSHADER = {};
+DiffusionBlurEffect.prototype._FSHADER.type = 'x-shader/x-fragment';
+DiffusionBlurEffect.prototype._FSHADER.src = '\
+  precision mediump float;\
+  uniform float uWidth;\
+  uniform float uHeight;\
+  uniform sampler2D uSampler;\
+  uniform sampler2D uSampler2;\
+  uniform float     uWeight[10];\
+  uniform bool      uIsX;\
+\
+void main(void){\
+  vec2 st = vec2(1.0/uWidth, 1.0/uHeight);\
+  vec2 fc = gl_FragCoord.st;\
+  vec4 color = vec4(0.0);\
+\
+  if(uIsX){\
+    color += texture2D(uSampler, (fc + vec2(-9.0, 0.0)) * st) * uWeight[9];\
+    color += texture2D(uSampler, (fc + vec2(-8.0, 0.0)) * st) * uWeight[8];\
+    color += texture2D(uSampler, (fc + vec2(-7.0, 0.0)) * st) * uWeight[7];\
+    color += texture2D(uSampler, (fc + vec2(-6.0, 0.0)) * st) * uWeight[6];\
+    color += texture2D(uSampler, (fc + vec2(-5.0, 0.0)) * st) * uWeight[5];\
+    color += texture2D(uSampler, (fc + vec2(-4.0, 0.0)) * st) * uWeight[4];\
+    color += texture2D(uSampler, (fc + vec2(-3.0, 0.0)) * st) * uWeight[3];\
+    color += texture2D(uSampler, (fc + vec2(-2.0, 0.0)) * st) * uWeight[2];\
+    color += texture2D(uSampler, (fc + vec2(-1.0, 0.0)) * st) * uWeight[1];\
+    color += texture2D(uSampler, (fc + vec2( 0.0, 0.0)) * st) * uWeight[0];\
+    color += texture2D(uSampler, (fc + vec2( 1.0, 0.0)) * st) * uWeight[1];\
+    color += texture2D(uSampler, (fc + vec2( 2.0, 0.0)) * st) * uWeight[2];\
+    color += texture2D(uSampler, (fc + vec2( 3.0, 0.0)) * st) * uWeight[3];\
+    color += texture2D(uSampler, (fc + vec2( 4.0, 0.0)) * st) * uWeight[4];\
+    color += texture2D(uSampler, (fc + vec2( 5.0, 0.0)) * st) * uWeight[5];\
+    color += texture2D(uSampler, (fc + vec2( 6.0, 0.0)) * st) * uWeight[6];\
+    color += texture2D(uSampler, (fc + vec2( 7.0, 0.0)) * st) * uWeight[7];\
+    color += texture2D(uSampler, (fc + vec2( 8.0, 0.0)) * st) * uWeight[8];\
+    color += texture2D(uSampler, (fc + vec2( 9.0, 0.0)) * st) * uWeight[9];\
+  }else{\
+    color += texture2D(uSampler, (fc + vec2(0.0, -9.0)) * st) * uWeight[9];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -8.0)) * st) * uWeight[8];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -7.0)) * st) * uWeight[7];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -6.0)) * st) * uWeight[6];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -5.0)) * st) * uWeight[5];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -4.0)) * st) * uWeight[4];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -3.0)) * st) * uWeight[3];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -2.0)) * st) * uWeight[2];\
+    color += texture2D(uSampler, (fc + vec2(0.0, -1.0)) * st) * uWeight[1];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  0.0)) * st) * uWeight[0];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  1.0)) * st) * uWeight[1];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  2.0)) * st) * uWeight[2];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  3.0)) * st) * uWeight[3];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  4.0)) * st) * uWeight[4];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  5.0)) * st) * uWeight[5];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  6.0)) * st) * uWeight[6];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  7.0)) * st) * uWeight[7];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  8.0)) * st) * uWeight[8];\
+    color += texture2D(uSampler, (fc + vec2(0.0,  9.0)) * st) * uWeight[9];\
+    vec4 color2 = texture2D(uSampler2, gl_FragCoord.st * st);\
+    vec4 color3 = vec4(color2.rgb * color2.rgb, color2.a);\
+    color = color3 + color - color3 * color;\
+    color = max(color, color2);\
+    color = mix(color2, color, 0.67);\
+/*    color.a = max(color.a, color2.a);*/\
+  }\
+  gl_FragColor = color;\
+}\
+';
+
+
+DiffusionBlurEffect.prototype._initUniforms = function(shader, gl) {
+  this.parent.prototype._initUniforms.call(this, shader, gl);
+
+  shader.isXUniformLocation =
+    gl.getUniformLocation(shader, 'uIsX');
+  shader.weightUniformLocation =
+    gl.getUniformLocation(shader, 'uWeight');
+};
+
+
+DiffusionBlurEffect.prototype._initParams = function(shader, gl) {
+  this.parent.prototype._initParams.call(this, shader, gl);
+
+  var weight = [];
+  this._getGaussianWeight(weight, 10, 20);
+  shader.weight = weight;
+};
+
+
+__copyParentMethod(DiffusionBlurEffect, PostEffect, '_setUniforms');
+DiffusionBlurEffect.prototype._setUniforms = function(n) {
+  this.PostEffect_setUniforms(n);
+
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  gl.uniform1fv(shader.weightUniformLocation, shader.weight);
+  gl.uniform1i(shader.isXUniformLocation, n == 0 ? 1 : 0);
 };
