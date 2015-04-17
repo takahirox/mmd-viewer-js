@@ -870,7 +870,8 @@ PhysicsRigidBody.prototype._setPositionFromBone = function(motions) {
 
   var tr2 = this._newTransform();
   this.rb.getMotionState().getWorldTransform(tr2);
-  this._copyOrigin(tr2, tr);
+  this._copyOrigin(tr2, form);
+
   this.rb.setWorldTransform(tr2);
 
   Ammo.destroy(tr);
