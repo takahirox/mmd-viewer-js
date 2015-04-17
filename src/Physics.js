@@ -788,7 +788,7 @@ PhysicsRigidBody.prototype._init = function() {
   var rb = new Ammo.btRigidBody(info);
   if(body.type == 0) {
     rb.setCollisionFlags(rb.getCollisionFlags() | 2);
-//    rb.setActivationState(4);
+    rb.setActivationState(4);
   }
   rb.setDamping(body.positionDim, body.rotationDim);
   rb.setSleepingThresholds(0, 0);
@@ -833,6 +833,7 @@ PhysicsRigidBody.prototype.preSimulation = function(motions) {
 
   if(this.body.type == 0/* && this.body.boneIndex != 0*/)
     this._setTransformFromBone(motions);
+
   if(this.body.type == 2/* && this.body.boneIndex != 0*/)
     this._setPositionFromBone(motions);
 };
@@ -852,7 +853,10 @@ PhysicsRigidBody.prototype._setTransformFromBone = function(motions) {
 
   var form = this._multiplyTransforms(tr, this.boneOffsetForm);
 
-  this.rb.setWorldTransform(form);
+  // TODO: temporal
+//  this.rb.setWorldTransform(form);
+  this.rb.setCenterOfMassTransform(form);
+  this.rb.getMotionState().setWorldTransform(form);
 
   Ammo.destroy(tr);
   Ammo.destroy(form);
@@ -872,7 +876,10 @@ PhysicsRigidBody.prototype._setPositionFromBone = function(motions) {
   this.rb.getMotionState().getWorldTransform(tr2);
   this._copyOrigin(tr2, form);
 
-  this.rb.setWorldTransform(tr2);
+  // TODO: temporal
+//  this.rb.setWorldTransform(tr2);
+  this.rb.setCenterOfMassTransform(tr2);
+  this.rb.getMotionState().setWorldTransform(tr2);
 
   Ammo.destroy(tr);
   Ammo.destroy(tr2);
@@ -942,7 +949,7 @@ PhysicsConstraint.prototype._init = function() {
   var body1 = this.bodyA.body;
   var body2 = this.bodyB.body;
 
-/*
+
   if(body1.type !== 0 && body2.type == 2) {
     if(body1.boneIndex > 0       && body2.boneIndex > 0 &&
        body1.boneIndex != 0xFFFF && body2.boneIndex != 0xFFFF) {
@@ -953,7 +960,7 @@ PhysicsConstraint.prototype._init = function() {
       }
     }
   }
-*/
+
 
   var form = this._newTransform();
   this._setOriginArray3Left(form, joint.position);
@@ -984,7 +991,6 @@ PhysicsConstraint.prototype._init = function() {
   var aul = new Ammo.btVector3(-joint.rotationLimitation1[0],
                                -joint.rotationLimitation1[1],
                                 joint.rotationLimitation2[2]);
-
 
   constraint.setLinearLowerLimit(lll);
   constraint.setLinearUpperLimit(lul);
