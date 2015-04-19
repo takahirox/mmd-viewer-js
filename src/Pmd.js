@@ -41,6 +41,10 @@ function PMD() {
   this.images = [];
   this.toonImages = [];
   this.sphereImages = [];
+
+  this.centerBone = {};
+  this.leftFootBone = {};
+  this.rightFootBone = {};
 };
 
 
@@ -73,6 +77,8 @@ PMD.prototype.setup = function() {
     this.facesHash[this.faces[i].name] = this.faces[i];
   }
 //  this.toRight();
+
+  this._keepSomeBonesInfo();
 };
 
 
@@ -96,6 +102,84 @@ PMD.prototype.toRight = function() {
   for(var i = 0; i < this.jointCount; i++) {
     this.joints[i].toRight();
   }
+};
+
+
+/**
+ * TODO: change strings if sjis-lib is used
+ */
+PMD.prototype._keepSomeBonesInfo = function() {
+  // センター, 左足首, 右足首
+  this._keepBoneInfo(this.centerBone,    '0x830x5a0x830x930x830x5e0x810x5b');
+  this._keepBoneInfo(this.leftFootBone,  '0x8d0xb60x910xab0x8e0xf1');
+  this._keepBoneInfo(this.rightFootBone, '0x890x450x910xab0x8e0xf1');
+};
+
+
+PMD.prototype._keepBoneInfo = function(obj, name) {
+  var boneNum = this._findBoneNumberByName(name);
+  if(boneNum !== null) {
+    var bone = this.bones[boneNum];
+    obj.pos = this._getAveragePositionOfBone(bone);
+    obj.id = boneNum;
+    obj.bone = bone;
+    obj.posFromBone = [];
+    obj.posFromBone[0] = obj.pos[0] - bone.position[0];
+    obj.posFromBone[1] = obj.pos[1] - bone.position[1];
+    obj.posFromBone[2] = obj.pos[2] - bone.position[2];
+  } else {
+    obj.pos = null;
+    obj.id = null;
+    obj.bone = null;
+    obj.posFromBone = null;
+  }
+};
+
+
+PMD.prototype._findBoneNumberByName = function(name) {
+  for(var i = 0; i < this.boneCount; i++) {
+    if(this.bones[i].name == name)
+      return i;
+  }
+  return null;
+};
+
+
+/**
+ * TODO: consider the algorithm again.
+ */
+PMD.prototype._getAveragePositionOfBone = function(bone) {
+  var num = 0;
+  var pos = [0, 0, 0];
+  for(var i = 0; i < this.vertexCount; i++) {
+    var v = this.vertices[i];
+    // TODO: consider boneWeight?
+    if(v.boneIndices[0] == bone.id || v.boneIndices[1] == bone.id) {
+      pos[0] += v.position[0];
+      pos[1] += v.position[1];
+      pos[2] += v.position[2];
+      num++;
+    }
+/*
+    if(v.boneIndices[0] == bone.id) {
+      pos[0] += v.position[0] * (v.boneIndex / 100);
+      pos[1] += v.position[1] * (v.boneIndex / 100);
+      pos[2] += v.position[2] * (v.boneIndex / 100);
+      num++;
+    } else if(v.boneIndices[1] == bone.id) {
+      pos[0] += v.position[0] * ((100 - v.boneIndex) / 100);
+      pos[1] += v.position[1] * ((100 - v.boneIndex) / 100);
+      pos[2] += v.position[2] * ((100 - v.boneIndex) / 100);
+      num++;
+    }
+*/
+  }
+  if(num != 0) {
+    pos[0] = pos[0] / num;
+    pos[1] = pos[1] / num;
+    pos[2] = pos[2] / num;
+  }
+  return pos;
 };
 
 

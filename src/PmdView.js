@@ -97,6 +97,7 @@ function PMDView(layer, pmd, worker) {
   this.sphereMapType = null;
   this.lightColor = null;
   this.runType = null;
+  this.stageType = null;
   this.effectFlag = null;
   this.audioType = null;
 
@@ -109,6 +110,7 @@ function PMDView(layer, pmd, worker) {
   this.setSphereMapType(this._SPHERE_MAP_ON);
   this.setEdgeType(this._EDGE_ON);
   this.setRunType(this._RUN_FRAME_ORIENTED);
+  this.setStageType(this._STAGE_2);
   this.setEffectFlag(this._EFFECT_OFF);
   this.setAudioType(this._AUDIO_ON);
   this.setLightColor(1.0);
@@ -166,6 +168,11 @@ PMDView.prototype._AUDIO_ON  = 1;
 PMDView.prototype._EDGE_OFF = 0;
 PMDView.prototype._EDGE_ON  = 1;
 
+PMDView.prototype._STAGE_OFF = 0;
+PMDView.prototype._STAGE_1   = 1;
+PMDView.prototype._STAGE_2   = 2;
+PMDView.prototype._STAGE_3   = 3;
+
 PMDView.prototype._EFFECT_OFF       = 0x0;
 PMDView.prototype._EFFECT_BLUR      = 0x1;
 PMDView.prototype._EFFECT_GAUSSIAN  = 0x2;
@@ -201,6 +208,11 @@ PMDView._AUDIO_ON  = PMDView.prototype._AUDIO_ON  = 1;
 
 PMDView._EDGE_OFF = PMDView.prototype._EDGE_OFF;
 PMDView._EDGE_ON  = PMDView.prototype._EDGE_ON;
+
+PMDView._STAGE_OFF = PMDView.prototype._STAGE_OFF;
+PMDView._STAGE_1   = PMDView.prototype._STAGE_1;
+PMDView._STAGE_2   = PMDView.prototype._STAGE_2;
+PMDView._STAGE_3   = PMDView.prototype._STAGE_3;
 
 PMDView._EFFECT_OFF       = PMDView.prototype._EFFECT_OFF;
 PMDView._EFFECT_BLUR      = PMDView.prototype._EFFECT_BLUR;
@@ -326,6 +338,11 @@ PMDView.prototype.setRunType = function(type) {
 };
 
 
+PMDView.prototype.setStageType = function(type) {
+  this.stageType = type;
+};
+
+
 /**
  * TODO: override so far
  */
@@ -391,9 +408,9 @@ PMDView.prototype.resetCameraMove = function() {
 
 PMDView.prototype.moveCameraForward = function(d) {
   if(d > 0)
-    this.cameraDistance -= 10;
+    this.cameraDistance -= 25;
   if(d < 0)
-    this.cameraDistance += 10;
+    this.cameraDistance += 25;
 
   if(this.cameraDistance <= -100)
     this.cameraDistance = -99;
@@ -799,7 +816,7 @@ PMDView.prototype._draw = function(texture, pos, num) {
     this.vmd.getCalculatedCameraParams(this.eye, this.center, this.up);
   }
 
-  layer.perspective(angle, 0.1, 1000.0);
+  layer.perspective(angle, 0.1, 2000.0);
   layer.identity();
 
   var eye = [0, 0, 0];
@@ -963,6 +980,13 @@ PMDView.prototype.draw = function() {
 
   this._drawMain();
 
+  if(this.stageType != this._STAGE_OFF) {
+    this._drawStage();
+    if(this.effectFlag == this._EFFECT_OFF)
+      gl.useProgram(shader);
+  }
+  gl.flush();
+
   if(this.effectFlag != this._EFFECT_OFF) {
     gl.useProgram(postShader);
     postEffect.draw();
@@ -1057,7 +1081,6 @@ PMDView.prototype._drawMain = function() {
   }
 
   if(this.edgeType == this._EDGE_OFF) {
-    this.layer.gl.flush();
     return;
   }
 
@@ -1074,7 +1097,40 @@ PMDView.prototype._drawMain = function() {
     offset += num;
   }
 
-  this.layer.gl.flush();
+};
+
+
+/**
+ * TODO: temporal
+ * TODO: optimize
+ */
+PMDView.prototype._drawStage = function() {
+  var layer = this.layer;
+  var gl = this.layer.gl;
+  var stage = this.layer.stageShaders[this.stageType-1];
+  var shader = stage.shader;
+
+  var cPos = this._skinningOneBone(this.pmd.centerBone);
+  var lfPos = this._skinningOneBone(this.pmd.leftFootBone);
+  var rfPos = this._skinningOneBone(this.pmd.rightFootBone);
+
+  stage.draw(this.frame, cPos, lfPos, rfPos);
+};
+
+
+/**
+ * TODO: rename
+ */
+PMDView.prototype._skinningOneBone = function(b) {
+  if(b.id === null)
+    return null;
+
+  var m = this._getBoneMotion(b.id);
+  var v = b.posFromBone;
+  var vd = [0, 0, 0];
+  this.vec3.rotateByQuat4(v, m.r, vd);
+  this.vec3.add(vd, m.p, vd);
+  return vd;
 };
 
 

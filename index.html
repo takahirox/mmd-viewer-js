@@ -64,19 +64,19 @@ var __models = [
    url:  __modelBaseURL + '/mokou/mokou_A.pmd',
    eye:  [0, 10, -22]},
 /*
-  {name: 'Marisa (light)',
+  {name: 'Marisa (Freckled)',
    url:  __modelBaseURL + '/low_marisa/marisa.pmd',
    eye:  [0, 10, -22]},
-  {name: 'Reimu (light)',
+  {name: 'Reimu (Freckled)',
    url:  __modelBaseURL + '/low_reimu/reimu.pmd',
    eye:  [0, 10, -22]},
-  {name: 'Alice(heavy)',
+  {name: 'Alice',
    url:  __modelBaseURL + '/alice/alice.pmd',
    eye:  [0, 10, -22]},
-  {name: 'Marisa (heavy)',
+  {name: 'Marisa (Lucille)',
    url:  __modelBaseURL + '/marisa/marisa.pmd',
    eye:  [0, 10, -22]},
-  {name: 'Miku (heavy)',
+  {name: 'Miku (lat)',
    url:  __modelBaseURL + '/miku/miku.pmd',
    eye:  [0, 10, -22]},
 */
@@ -176,6 +176,19 @@ var __morphs = [
 ];
 
 
+var __stages = [
+  {name: 'Stage OFF',
+   value: PMDView._STAGE_OFF},
+  {name: 'Stage 1',
+   value: PMDView._STAGE_1},
+  {name: 'Stage 2',
+   value: PMDView._STAGE_2,
+   selected: true},
+  {name: 'Stage 3',
+   value: PMDView._STAGE_3},
+];
+
+
 var __sphereMaps = [
   {name: 'Sphere mapping OFF',
    value: PMDView._SPHERE_MAP_OFF},
@@ -267,6 +280,7 @@ var __audioSelect;
 var __physicsSelect;
 var __ikSelect;
 var __morphSelect;
+var __stageSelect;
 var __sphereMapSelect;
 var __runTypeSelect;
 var __effectSelect;
@@ -310,6 +324,7 @@ var __initState = function() {
   __physicsSelect.disabled           = false;
   __ikSelect.disabled                = false;
   __morphSelect.disabled             = false;
+  __stageSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
   __effectSelect.disabled            = false;
@@ -334,6 +349,7 @@ var __loadingFileState = function() {
   __edgeSelect.disabled              = true;
   __ikSelect.disabled                = true;
   __morphSelect.disabled             = true;
+  __stageSelect.disabled             = true;
   __sphereMapSelect.disabled         = true;
   __runTypeSelect.disabled           = true;
   __effectSelect.disabled            = true;
@@ -354,6 +370,7 @@ var __pmdFileLoadedState = function() {
   __ikSelect.disabled                = false;
   __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
+  __stageSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
   __effectSelect.disabled            = false;
@@ -377,6 +394,7 @@ var __vmdFileLoadedState = function() {
   __ikSelect.disabled                = false;
   __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
+  __stageSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
   __effectSelect.disabled            = false;
@@ -401,6 +419,7 @@ var __danceReadyState = function() {
   __ikSelect.disabled                = false;
   __edgeSelect.disabled              = false;
   __morphSelect.disabled             = false;
+  __stageSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
   __runTypeSelect.disabled           = false;
   __effectSelect.disabled            = false;
@@ -488,6 +507,7 @@ var __init = function() {
   __physicsSelect = document.getElementById('physicsSelect');
   __ikSelect = document.getElementById('ikSelect');
   __morphSelect = document.getElementById('morphSelect');
+  __stageSelect = document.getElementById('stageSelect');
   __sphereMapSelect = document.getElementById('sphereMapSelect');
   __effectSelect = document.getElementById('effectSelect');
   __runTypeSelect = document.getElementById('runTypeSelect');
@@ -513,6 +533,7 @@ var __init = function() {
   __initSelect(__physicsSelect, __physicses);
   __initSelect(__ikSelect, __iks);
   __initSelect(__morphSelect, __morphs);
+  __initSelect(__stageSelect, __stages);
   __initSelect(__sphereMapSelect, __sphereMaps);
   __initSelect(__runTypeSelect, __runTypes);
   __initSelect(__effectSelect, __effects);
@@ -619,6 +640,7 @@ var __imagesLoaded = function(pmd) {
   __setPhysicsType(pmdView);
   __setIKType(pmdView);
   __setMorphType(pmdView);
+  __setStageType(pmdView);
   __setSphereMapType(pmdView);
   __setRunType(pmdView);
   __setEffectFlag(pmdView);
@@ -770,6 +792,12 @@ var __morphSelectChanged = function() {
 };
 
 
+var __stageSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setStageType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
 var __sphereMapSelectChanged = function() {
   if(__pmdFileLoaded)
     __setSphereMapType(__pmdView);  // TODO: has accessed __pmdView
@@ -846,6 +874,12 @@ var __setIKType = function(pmdView) {
 var __setMorphType = function(pmdView) {
   var index = parseInt(__morphSelect.value);
   pmdView.setMorphType(__morphs[index].value);
+};
+
+
+var __setStageType = function(pmdView) {
+  var index = parseInt(__stageSelect.value);
+  pmdView.setStageType(__stages[index].value);
 };
 
 
@@ -1081,6 +1115,7 @@ generate a video
 <select id="physicsSelect"   onchange="__physicsSelectChanged()"></select>
 <select id="ikSelect"        onchange="__ikSelectChanged()"></select>
 <select id="morphSelect"     onchange="__morphSelectChanged()"></select>
+<select id="stageSelect"     onchange="__stageSelectChanged()"></select>
 <select id="sphereMapSelect" onchange="__sphereMapSelectChanged()"></select>
 <br />
 <select id="edgeSelect" onchange="__edgeSelectChanged()"></select>

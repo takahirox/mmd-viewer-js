@@ -3,6 +3,7 @@ function Layer(canvas) {
   this.gl = this._initGl(canvas);
   this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
   this.shader = this._initShader(this.gl);
+  this.stageShaders = [];
   this.postEffects = {};
   this.mvMatrix = mat4.create();
   this.pMatrix = mat4.create();
@@ -10,6 +11,7 @@ function Layer(canvas) {
   this.lightDirection = [-30, 100, 50]; // TODO: temporal
   this.camera = null;
   this._initPostEffects();
+  this._initStageShaders();
 };
 
 // only for reference.
@@ -420,6 +422,13 @@ Layer.prototype._initPostEffects = function() {
 };
 
 
+Layer.prototype._initStageShaders = function() {
+  this.stageShaders[0] = new SimpleStage(this);
+  this.stageShaders[1] = new MeshedStage(this);
+  this.stageShaders[2] = new TrialStage(this);
+};
+
+
 Layer.prototype.setMatrixUniforms = function(gl) {
   gl.uniformMatrix4fv(this.shader.pMatrixUniform, false, this.pMatrix);
   gl.uniformMatrix4fv(this.shader.mvMatrixUniform, false, this.mvMatrix);
@@ -580,6 +589,484 @@ Layer.prototype.calculateVTFWidth = function(num) {
     val = val * 2;
   }
   return val;
+};
+
+
+
+function StageShader(layer) {
+  this.layer = layer;
+  this.shader = null;
+  this._init();
+};
+
+StageShader.prototype._VSHADER = {};
+StageShader.prototype._VSHADER.type = 'x-shader/x-vertex';
+StageShader.prototype._VSHADER.src = '\
+  attribute vec3 aPosition;\
+  attribute float aAlpha;\
+  uniform mat4 uMVMatrix;\
+  uniform mat4 uPMatrix;\
+  varying vec3 vPosition;\
+  varying float vAlpha;\
+\
+  void main() {\
+    gl_Position = uPMatrix * uMVMatrix * vec4(aPosition, 1.0);\
+    vPosition = aPosition;\
+    vAlpha = aAlpha;\
+  }\
+';
+
+StageShader.prototype._FSHADER = {};
+StageShader.prototype._FSHADER.type = 'x-shader/x-fragment';
+StageShader.prototype._FSHADER.src = '\
+  precision mediump float;\
+  varying vec3  vPosition;\
+  varying float vAlpha;\
+  uniform float uFrame;\
+  uniform float uWidth;\
+  uniform vec3  uModelCenterPosition;\
+  uniform vec3  uModelRightFootPosition;\
+  uniform vec3  uModelLeftFootPosition;\
+\
+  void main() {\
+    gl_FragColor = vec4(vec3(0.0), vAlpha);\
+  }\
+';
+
+
+StageShader.prototype._init = function() {
+  var gl = this.layer.gl;
+  this.shader = this._initShader(gl);
+  this._initAttributes(this.shader, gl);
+  this._initUniforms(this.shader, gl);
+  this._initBuffers(this.shader, gl);
+  this._initParams(this.shader, gl);
+};
+
+
+StageShader.prototype._initShader = function(gl) {
+  var vertexShader = this._compileShader(this._VSHADER);
+  var fragmentShader = this._compileShader(this._FSHADER);
+
+  var shader = gl.createProgram();
+  gl.attachShader(shader, vertexShader);
+  gl.attachShader(shader, fragmentShader);
+  gl.linkProgram(shader);
+
+  if(!gl.getProgramParameter(shader, gl.LINK_STATUS)) {
+    alert("Failed to setup shaders");
+  }
+
+  return shader;
+};
+
+
+StageShader.prototype._initAttributes = function(shader, gl) {
+  shader.positionAttribute =
+    gl.getAttribLocation(shader, 'aPosition');
+  shader.alphaAttribute =
+    gl.getAttribLocation(shader, 'aAlpha');
+};
+
+
+StageShader.prototype._initUniforms = function(shader, gl) {
+  shader.mvMatrixUniformLocation =
+    gl.getUniformLocation(shader, 'uMVMatrix');
+  shader.pMatrixUniformLocation =
+    gl.getUniformLocation(shader, 'uPMatrix');
+  shader.widthUniformLocation =
+    gl.getUniformLocation(shader, 'uWidth');
+  shader.frameUniformLocation =
+    gl.getUniformLocation(shader, 'uFrame');
+  shader.modelCenterPositionUniformLocation =
+    gl.getUniformLocation(shader, 'uModelCenterPosition');
+  shader.modelLeftFootPositionUniformLocation =
+    gl.getUniformLocation(shader, 'uModelLeftFootPosition');
+  shader.modelRightFootPositionUniformLocation =
+    gl.getUniformLocation(shader, 'uModelRightFootPosition');
+};
+
+
+StageShader.prototype._initBuffers = function(shader, gl) {
+  var w = 1000.0;
+  var positions = [
+    -w,  0.0,  w,
+     w,  0.0,  w,
+    -w,  0.0, -w,
+     w,  0.0, -w,
+
+    -w,  0.0,  w,
+     w,  0.0,  w,
+    -w,  0.0, -w,
+     w,  0.0, -w,
+  ];
+
+  var indices = [
+     2,  1,  0,
+     1,  2,  3,
+
+     4,  5,  6,
+     7,  6,  5,
+  ];
+
+  var alphas = [
+    1.0, 1.0, 1.0, 1.0,
+    0.5, 0.5, 0.5, 0.5,
+  ];
+
+  var pBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, pBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+  pBuffer.itemSize = 3;
+
+  var aBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, aBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(alphas), gl.STATIC_DRAW);
+  aBuffer.itemSize = 1;
+
+  var iBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuffer);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices),
+                gl.STATIC_DRAW);
+  iBuffer.itemNum = indices.length;
+
+  shader.width = w;
+  shader.pBuffer = pBuffer;
+  shader.aBuffer = aBuffer;
+  shader.iBuffer = iBuffer;
+};
+
+
+/**
+ * override in child class
+ */
+StageShader.prototype._initParams = function(shader, gl) {
+};
+
+
+StageShader.prototype._compileShader = function(params) {
+  return this.layer.compileShader(this.layer.gl, params.src, params.type);
+};
+
+
+StageShader.prototype._bindAttributes = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, shader.pBuffer);
+  gl.enableVertexAttribArray(shader.positionAttribute);
+  gl.vertexAttribPointer(shader.positionAttribute,
+                         shader.pBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, shader.aBuffer);
+  gl.enableVertexAttribArray(shader.alphaAttribute);
+  gl.vertexAttribPointer(shader.alphaAttribute,
+                         shader.aBuffer.itemSize, gl.FLOAT, false, 0, 0);
+};
+
+
+StageShader.prototype._bindIndices = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shader.iBuffer);
+};
+
+
+/**
+ * TODO: be param flexible
+ */
+StageShader.prototype._setUniforms = function(frame, cPos, lfPos, rfPos) {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  // TODO: temporal
+  gl.uniformMatrix4fv(shader.mvMatrixUniformLocation, false,
+                      this.layer.mvMatrix);
+  gl.uniformMatrix4fv(shader.pMatrixUniformLocation, false,
+                      this.layer.pMatrix);
+
+  gl.uniform1f(shader.frameUniformLocation, frame);
+  gl.uniform1f(shader.widthUniformLocation, shader.width);
+
+  if(cPos !== null)
+    gl.uniform3fv(shader.modelCenterPositionUniformLocation, cPos);
+
+  if(lfPos !== null)
+    gl.uniform3fv(shader.modelLeftFootPositionUniformLocation, lfPos);
+
+  if(rfPos !== null)
+    gl.uniform3fv(shader.modelRightFootPositionUniformLocation, rfPos);
+};
+
+
+StageShader.prototype._enableConditions = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.SRC_ALPHA,
+                       gl.ONE_MINUS_SRC_ALPHA,
+                       gl.SRC_ALPHA,
+                       gl.DST_ALPHA);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.FRONT);
+};
+
+
+StageShader.prototype._draw = function() {
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  gl.drawElements(gl.TRIANGLES, shader.iBuffer.itemNum, gl.UNSIGNED_SHORT, 0);
+};
+
+
+/**
+ * TODO: be param flexible
+ */
+StageShader.prototype.draw = function(frame, cPos, lfPos, rfPos) {
+  this.layer.gl.useProgram(this.shader);
+  this._bindAttributes();
+  this._setUniforms(frame, cPos, lfPos, rfPos);
+  this._bindIndices();
+  this._enableConditions();
+  this._draw();
+};
+
+
+
+function SimpleStage(layer) {
+  this.parent = StageShader;
+  this.parent.call(this, layer);
+};
+__inherit(SimpleStage, StageShader);
+
+SimpleStage.prototype._FSHADER = {};
+SimpleStage.prototype._FSHADER.type = 'x-shader/x-fragment';
+SimpleStage.prototype._FSHADER.src = '\
+  precision mediump float;\
+  varying vec3  vPosition;\
+  varying float vAlpha;\
+  uniform float uFrame;\
+  uniform float uWidth;\
+  uniform vec3  uModelCenterPosition;\
+  uniform vec3  uModelRightFootPosition;\
+  uniform vec3  uModelLeftFootPosition;\
+\
+  void main() {\
+    float r = cos(vPosition.x);\
+    float g = cos(vPosition.z);\
+    gl_FragColor = vec4(r*g, r*g, r*g, vAlpha);\
+  }\
+';
+
+
+
+function MeshedStage(layer) {
+  this.parent = StageShader;
+  this.parent.call(this, layer);
+};
+__inherit(MeshedStage, StageShader);
+
+
+MeshedStage.prototype._FSHADER = {};
+MeshedStage.prototype._FSHADER.type = 'x-shader/x-fragment';
+MeshedStage.prototype._FSHADER.src = '\
+  precision mediump float;\
+  varying vec3  vPosition;\
+  varying float vAlpha;\
+  uniform float uFrame;\
+  uniform float uWidth;\
+  uniform vec3  uModelCenterPosition;\
+  uniform vec3  uModelRightFootPosition;\
+  uniform vec3  uModelLeftFootPosition;\
+\
+  const float tileSize = 5.0;\
+  const float pi = 3.1415926535;\
+  const float circleRatio = 0.01;\
+\
+  vec2 getTile(vec2 pos) {\
+    return floor((pos + uWidth + (tileSize * 0.5)) / tileSize);\
+  }\
+\
+  void main() {\
+    vec3 pos = vPosition / uWidth;\
+    float s = cos(uFrame/(pi*2.0));\
+    float b = 0.0;\
+    float alpha = vAlpha;\
+    vec2 tile = getTile(vPosition.xz);\
+    vec2 ctile = getTile(uModelCenterPosition.xz);\
+    vec2 ltile = getTile(uModelLeftFootPosition.xz);\
+    vec2 rtile = getTile(uModelRightFootPosition.xz);\
+\
+    if(tile == ltile || tile == rtile) {\
+      gl_FragColor = vec4(vec3(1.0, 0.5, 0.5)*s, alpha);\
+      return;\
+    }\
+\
+    tile = vec2(mod(tile.x, 2.0), mod(tile.y, 2.0));\
+\
+    if(pos.x * pos.x+ pos.z * pos.z > circleRatio) {\
+      b = 0.8;\
+    }\
+\
+    if(tile == vec2(0.0) || tile == vec2(1.0)) {\
+      gl_FragColor = vec4(vec3(1.0)+b, alpha);\
+    } else {\
+      gl_FragColor = vec4(vec3(0.0)+b, alpha);\
+    }\
+  }\
+';
+
+
+
+function TrialStage(layer) {
+  this.parent = StageShader;
+  this.parent.call(this, layer);
+};
+__inherit(TrialStage, StageShader);
+
+TrialStage.prototype._FSHADER = {};
+TrialStage.prototype._FSHADER.type = 'x-shader/x-fragment';
+TrialStage.prototype._FSHADER.src = '\
+  precision mediump float;\
+  varying vec3  vPosition;\
+  varying float vAlpha;\
+  uniform float uFrame;\
+  uniform float uWidth;\
+  uniform vec3  uModelCenterPosition;\
+  uniform vec3  uModelRightFootPosition;\
+  uniform vec3  uModelLeftFootPosition;\
+\
+  const int num = 8;\
+  const int unitAngle = 360 / num;\
+\
+  vec2 getVec2(vec3 v) {\
+    if(vPosition.y == 0.0 || vPosition.y >= 2.0 * uWidth - 0.1)\
+      return v.xz;\
+    if(vPosition.x <= -uWidth + 0.1 || vPosition.x >= uWidth - 0.1)\
+      return v.yz;\
+    return v.xy;\
+  }\
+\
+  vec2 getPosition(int unitAngle, float uTime, int i) {\
+    float ax = abs(mod(uTime*0.4, 100.0) - 50.0);\
+    float ay = abs(mod(uTime*0.6, 100.0) - 50.0);\
+    float rad = radians(float(unitAngle * i) + uTime*1.0);\
+    vec2 val = getVec2(uModelCenterPosition);\
+    float x = val.x + ax * cos(rad);\
+    float y = val.y + ay * sin(rad);\
+    return vec2(x, y);\
+  }\
+\
+  void main() {\
+    float color = 0.0;\
+    vec2 val = getVec2(vPosition);\
+    for(int i = 0; i < num; i++) {\
+      vec2 pos = getPosition(unitAngle, uFrame, i);\
+      float dist = length(val - pos) * 6.0;\
+      color += 5.0 / dist;\
+    }\
+    gl_FragColor = vec4(vec3(color), vAlpha);\
+  }\
+';
+
+
+
+TrialStage.prototype._initBuffers = function(shader, gl) {
+  var w = 100.0;
+  var positions = [
+    -w,  0.0,  w,
+     w,  0.0,  w,
+    -w,  0.0, -w,
+     w,  0.0, -w,
+
+    -w,  0.0,  w,
+     w,  0.0,  w,
+    -w,  0.0, -w,
+     w,  0.0, -w,
+
+    -w,  w*2,  w,
+     w,  w*2,  w,
+    -w,  0.0,  w,
+     w,  0.0,  w,
+
+    -w,  0.0, -w,
+     w,  0.0, -w,
+    -w,  w*2, -w,
+     w,  w*2, -w,
+
+     w,  0.0, -w,
+     w,  0.0,  w,
+     w,  w*2, -w,
+     w,  w*w,  w,
+
+    -w,  w*2, -w,
+    -w,  w*2,  w,
+    -w,  0.0, -w,
+    -w,  0.0,  w,
+
+    -w,  w*2, -w,
+     w,  w*2, -w,
+    -w,  w*2,  w,
+     w,  w*2,  w,
+  ];
+
+  var indices = [
+     2,  1,  0,
+     1,  2,  3,
+
+     4,  5,  6,
+     7,  6,  5,
+
+    10,  9,  8,
+     9, 10, 11,
+
+    14, 13, 12,
+    13, 14, 15,
+
+    18, 17, 16,
+    17, 18, 19,
+
+    22, 21, 20,
+    21, 22, 23,
+
+    26, 25, 24,
+    25, 26, 27,
+  ];
+
+  var alphas = [
+    1.0, 1.0, 1.0, 1.0,
+    0.5, 0.5, 0.5, 0.5,
+    1.0, 1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0, 1.0,
+  ];
+
+  var pBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, pBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+  pBuffer.itemSize = 3;
+
+  var aBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, aBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(alphas), gl.STATIC_DRAW);
+  aBuffer.itemSize = 1;
+
+  var iBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuffer);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices),
+                gl.STATIC_DRAW);
+  iBuffer.itemNum = indices.length;
+
+  shader.width = w;
+  shader.pBuffer = pBuffer;
+  shader.aBuffer = aBuffer;
+  shader.iBuffer = iBuffer;
 };
 
 
