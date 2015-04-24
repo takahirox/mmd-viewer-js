@@ -48,7 +48,7 @@ VMD.prototype.valid = function() {
 };
 
 
-VMD.prototype.setup = function(pmd) {
+VMD.prototype.supply = function() {
   for(var i = 0; i < this.motionCount; i++)
     this.motions[i].supply();
 
@@ -60,15 +60,51 @@ VMD.prototype.setup = function(pmd) {
 
   for(var i = 0; i < this.lightCount; i++)
     this.lights[i].supply();
+};
 
+
+/**
+ * TODO: temporal
+ */
+VMD.prototype.clone = function() {
+  var v = new VMD();
+
+  v.motionCount = this.motionCount;
+  v.faceCount = this.faceCount;
+  v.cameraCount = this.cameraCount;
+  v.lightCount = this.lightCount;
+
+  for(var i = 0; i < this.motionCount; i++) {
+    v.motions[i] = this.motions[i];
+  }
+
+  for(var i = 0; i < this.faceCount; i++) {
+    v.faces[i] = this.faces[i];
+  }
+
+  for(var i = 0; i < this.cameraCount; i++) {
+    v.cameras[i] = this.cameras[i];
+  }
+
+  for(var i = 0; i < this.lightCount; i++) {
+    v.lights[i] = this.lights[i];
+  }
+
+  return v;
+};
+
+
+VMD.prototype.setup = function(pmd) {
   this.frame = 0;
   this.cameraIndex = -1;
   this.lightIndex = -1;
 
-  this._setupMotions(pmd);
-  this._setupFaces(pmd);
-  this._setupCameras(pmd);
-  this._setupLights(pmd);
+  if(pmd) {
+    this._setupMotions(pmd);
+    this._setupFaces(pmd);
+  }
+  this._setupCameras();
+  this._setupLights();
 
   // TODO: temporal
   this.step(1);
@@ -181,7 +217,7 @@ VMD.prototype._setupFaces = function(pmd) {
 };
 
 
-VMD.prototype._setupCameras = function(pmd) {
+VMD.prototype._setupCameras = function() {
   this.orderedCameras.length = 0;
   for(var i = 0; i < this.cameraCount; i++) {
     this.orderedCameras[i] = this.cameras[i];
@@ -193,7 +229,7 @@ VMD.prototype._setupCameras = function(pmd) {
 };
 
 
-VMD.prototype._setupLights = function(pmd) {
+VMD.prototype._setupLights = function() {
   this.orderedLights.length = 0;
   for(var i = 0; i < this.lightCount; i++) {
     this.orderedLights[i] = {};

@@ -11,6 +11,7 @@
 <script type="text/javascript" src="src/Pmd.js"></script>
 <script type="text/javascript" src="src/Vmd.js"></script>
 <script type="text/javascript" src="src/PmdView.js"></script>
+<script type="text/javascript" src="src/PmdModelView.js"></script>
 <script type="text/javascript" src="src/Physics.js"></script>
 <script type="text/javascript" src="src/FileParser.js"></script>
 <script type="text/javascript" src="src/PmdFileParser.js"></script>
@@ -60,7 +61,10 @@ var __models = [
   {name: 'Miku (low poly)',
    url:  __modelBaseURL + '/low_miku/miku.pmd',
    eye:  [0, 10, -22]},
-  {name: 'Mokou (heavy)',
+  {name: 'Gumi (low poly)',
+   url:  __modelBaseURL + '/low_miku/gumi.pmd',
+   eye:  [0, 10, -22]},
+  {name: 'Mokou',
    url:  __modelBaseURL + '/mokou/mokou_A.pmd',
    eye:  [0, 10, -22]},
 /*
@@ -94,8 +98,15 @@ var __motions = [
            offset: 320},
    selected: true},
 /*
+  {name: 'Koi Wa Kitto Kyujoushou',
+   url:  [__motionBaseURL + '/koiwakitto.vmd',
+          __motionBaseURL + '/koiwakitto_camera.vmd'],
+   eye:  [0, 10, -22],
+   music: {url : __musicBaseURL + '/koiwakitto.mp3',
+           offset: 0}},
   {name: 'Luka Luka Night fever',
-   url:  [__motionBaseURL + '/nightfever.vmd'],
+   url:  [__motionBaseURL + '/freely_tomorrow.vmd',
+          __motionBaseURL + '/freely_tomorrow_camera.vmd'],
    eye:  [0, 10, -22]},
   {name: 'Melt',
    url:  [__motionBaseURL + '/melt.vmd',
@@ -131,6 +142,12 @@ var __motions = [
           __motionBaseURL + '/sweetmagic-lip.vmd'],
    eye:  [-10, 10, -22],
    music: {url: __musicBaseURL + '/sweetmagic.mp3',
+           offset: 0}},
+  {name: 'World is mine',
+   url:  [__motionBaseURL + '/world_is_mine.vmd',
+          __motionBaseURL + '/world_is_mine_camera.vmd'],
+   eye:  [0, 10, -22],
+   music: {url : __musicBaseURL + '/world_is_mine.mp3',
            offset: 0}},
 */
 ];
@@ -292,6 +309,7 @@ var __lightColorSpan;
 
 
 // for work 
+var __layer;
 var __pmdFileLoaded = false;
 var __vmdFileLoaded = false;
 var __worker = null;
@@ -360,7 +378,12 @@ var __loadingFileState = function() {
 
 
 var __pmdFileLoadedState = function() {
-  __loadModelButton.disabled         = true;
+  // TODO: temporal
+  if(__pmdView && __pmdView.getModelNum() >= 5-1) {
+    __loadModelButton.disabled         = true;
+  } else {
+    __loadModelButton.disabled         = false;
+  }
   __loadMotionButton.disabled        = false;
   __modelSelect.disabled             = false;
   __motionSelect.disabled            = false;
@@ -525,6 +548,11 @@ var __init = function() {
   __canvas.oncontextmenu = __contextMenuHandler;
   __canvas.addEventListener('mousewheel', __wheelHandler, false);
 
+  __layer = new Layer(__canvas);
+
+  var pmdView = new PMDView(__layer);
+  __pmdView = pmdView;  // for console debug
+
   __updateLightColorSpan();
 
   __initSelect(__modelSelect, __models);
@@ -540,6 +568,19 @@ var __init = function() {
   __initSelect(__edgeSelect, __edges);
   __initSelect(__skinningSelect, __skinnings);
   __initSelect(__lightingSelect, __lightings);
+
+  __setPhysicsType(pmdView);
+  __setIKType(pmdView);
+  __setMorphType(pmdView);
+  __setStageType(pmdView);
+  __setSphereMapType(pmdView);
+  __setRunType(pmdView);
+  __setEffectFlag(pmdView);
+  __setEdgeType(pmdView);
+  __setSkinningType(pmdView);
+  __setLightingType(pmdView);
+  __setLightColor(pmdView);
+  __setAudioType(pmdView);
 
   __putStatus('select model and click load model button.');
   __initState();
@@ -601,13 +642,6 @@ var __analyzePMD = function(buffer) {
     return;
   }
 
-  if(__useWorkers) {
-    var worker = new Worker('workers/physics.js');
-    __worker = worker; // TODO: temporal
-    // send a copy
-    worker.postMessage(buffer);
-  }
-
   var pmd = pfp.parse();
   __pmd = pmd; // for console debug.
 
@@ -626,35 +660,62 @@ var __loadImages = function(pmd) {
 
 
 var __imagesLoaded = function(pmd) {
+  var pmdView = __pmdView;
+
   __putStatus('PMD is ready.');
   __putStatus('select motion and click load motion button.');
+
+  // TODO: temporal
+  if(pmdView.getModelNum() < 5-1) {
+    __putStatus('Or select model and click load model button.');
+  }
+
   __pmdFileLoadedState();
   __pmdFileLoaded = true;
 
-  var layer = new Layer(__canvas);
+  var pmdModelView = new PMDModelView(__layer, pmd, pmdView);
+  pmdModelView.setup();
 
-  pmdView = new PMDView(layer, pmd, __worker); // TODO: temporal
-  __pmdView = pmdView; // for console debug.
-                       // TODO: __pmdView has been used for work as well
+  pmdView.addModelView(pmdModelView);
+  __setModelsBasePosition(pmdView.modelViews);
 
-  __setPhysicsType(pmdView);
-  __setIKType(pmdView);
-  __setMorphType(pmdView);
-  __setStageType(pmdView);
-  __setSphereMapType(pmdView);
-  __setRunType(pmdView);
-  __setEffectFlag(pmdView);
-  __setEdgeType(pmdView);
-  __setSkinningType(pmdView);
-  __setLightingType(pmdView);
-  __setLightColor(pmdView);
-  __setAudioType(pmdView);
+  if(pmdView.getModelNum() == 1) {
+    pmdView.setEye(__selectedModel.eye);
+    __runStep(pmdView);
+  }
+};
 
-  pmdView.setup();
-  pmdView.setEye(__selectedModel.eye);
 
-  pmdView.draw();
-  __runStep(pmdView);
+var __setModelsBasePosition = function(pmdModelViews) {
+  switch(pmdModelViews.length) {
+    case 1:
+      pmdModelViews[0].setBasePosition(0, 0, 0);
+      break;
+    case 2:
+      pmdModelViews[0].setBasePosition(-10, 0, 0);
+      pmdModelViews[1].setBasePosition( 10, 0, 0);
+      break;
+    case 3:
+      pmdModelViews[0].setBasePosition(  0, 0,  0);
+      pmdModelViews[1].setBasePosition( 10, 0, 10);
+      pmdModelViews[2].setBasePosition(-10, 0, 10);
+      break;
+    case 4:
+      pmdModelViews[0].setBasePosition(  0, 0,  0);
+      pmdModelViews[1].setBasePosition( 10, 0, 10);
+      pmdModelViews[2].setBasePosition(-10, 0, 10);
+      pmdModelViews[3].setBasePosition(  0, 0, 20);
+      break;
+    case 5:
+      pmdModelViews[0].setBasePosition(  0, 0,  0);
+      pmdModelViews[1].setBasePosition( 10, 0, 10);
+      pmdModelViews[2].setBasePosition(-10, 0, 10);
+      pmdModelViews[3].setBasePosition( 20, 0, 20);
+      pmdModelViews[4].setBasePosition(-20, 0, 20);
+      break;
+    default:
+      break;
+  }
 };
 
 
@@ -754,7 +815,7 @@ var __loadMusicFile = function() {
 };
 
 
-var __startDance = function(pmdView) {
+var __startDance = function() {
   __putStatus('ready.');
   __putStatus('starts dance.');
 
@@ -979,26 +1040,14 @@ var __startVideoGeneration = function(output) {
 
 
 var __runStep = function(pmdView) {
-  if(! __useWorkers) {
-    pmdView.update();
-    pmdView.draw();
+  pmdView.update();
+  pmdView.draw();
 
-    // TODO: temporal
-    if(__videoEncoder !== null) {
-      __videoEncoder.add(pmdView.layer.canvas);
-    }
-
-    requestAnimationFrame(function() {__runStep(pmdView);});
-    __calculateFps();
-    __count++;
-  } else {
-    pmdView.draw();
-    pmdView.update();
+  // TODO: temporal
+  if(__videoEncoder !== null) {
+    __videoEncoder.add(pmdView.layer.canvas);
   }
-};
 
-
-var __updateDone = function(pmdView) {
   requestAnimationFrame(function() {__runStep(pmdView);});
   __calculateFps();
   __count++;
@@ -1144,7 +1193,7 @@ Thanks to
 <li>Models
  <ul>
    <li><a href="http://www.geocities.jp/higuchuu4/">Miku and other vocaloids</a></li>
-   <li><a href="http://www.geocities.jp/neko_terashima/MMD/index.html">Miku (low poly)</a></li>
+   <li><a href="http://www.geocities.jp/neko_terashima/MMD/index.html">Miku and Gumi (low poly)</a></li>
    <li><a href="http://homepage3.nifty.com/knuko/mmd/mmdIndex.html">Mokou</a></li>
  </ul>
 </li>

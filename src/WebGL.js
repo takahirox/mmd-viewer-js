@@ -624,9 +624,10 @@ StageShader.prototype._FSHADER.src = '\
   varying float vAlpha;\
   uniform float uFrame;\
   uniform float uWidth;\
-  uniform vec3  uModelCenterPosition;\
-  uniform vec3  uModelRightFootPosition;\
-  uniform vec3  uModelLeftFootPosition;\
+  uniform int   uModelNum;\
+  uniform vec3  uModelCenterPosition[5];\
+  uniform vec3  uModelRightFootPosition[5];\
+  uniform vec3  uModelLeftFootPosition[5];\
 \
   void main() {\
     gl_FragColor = vec4(vec3(0.0), vAlpha);\
@@ -678,6 +679,8 @@ StageShader.prototype._initUniforms = function(shader, gl) {
     gl.getUniformLocation(shader, 'uWidth');
   shader.frameUniformLocation =
     gl.getUniformLocation(shader, 'uFrame');
+  shader.modelNumUniformLocation =
+    gl.getUniformLocation(shader, 'uModelNum');
   shader.modelCenterPositionUniformLocation =
     gl.getUniformLocation(shader, 'uModelCenterPosition');
   shader.modelLeftFootPositionUniformLocation =
@@ -775,7 +778,7 @@ StageShader.prototype._bindIndices = function() {
 /**
  * TODO: be param flexible
  */
-StageShader.prototype._setUniforms = function(frame, cPos, lfPos, rfPos) {
+StageShader.prototype._setUniforms = function(frame, num, cPos, lfPos, rfPos) {
   var shader = this.shader;
   var gl = this.layer.gl;
 
@@ -787,6 +790,7 @@ StageShader.prototype._setUniforms = function(frame, cPos, lfPos, rfPos) {
 
   gl.uniform1f(shader.frameUniformLocation, frame);
   gl.uniform1f(shader.widthUniformLocation, shader.width);
+  gl.uniform1i(shader.modelNumUniformLocation, num);
 
   if(cPos !== null)
     gl.uniform3fv(shader.modelCenterPositionUniformLocation, cPos);
@@ -826,10 +830,10 @@ StageShader.prototype._draw = function() {
 /**
  * TODO: be param flexible
  */
-StageShader.prototype.draw = function(frame, cPos, lfPos, rfPos) {
+StageShader.prototype.draw = function(frame, num, cPos, lfPos, rfPos) {
   this.layer.gl.useProgram(this.shader);
   this._bindAttributes();
-  this._setUniforms(frame, cPos, lfPos, rfPos);
+  this._setUniforms(frame, num, cPos, lfPos, rfPos);
   this._bindIndices();
   this._enableConditions();
   this._draw();
@@ -851,9 +855,10 @@ SimpleStage.prototype._FSHADER.src = '\
   varying float vAlpha;\
   uniform float uFrame;\
   uniform float uWidth;\
-  uniform vec3  uModelCenterPosition;\
-  uniform vec3  uModelRightFootPosition;\
-  uniform vec3  uModelLeftFootPosition;\
+  uniform int   uModelNum;\
+  uniform vec3  uModelCenterPosition[5];\
+  uniform vec3  uModelRightFootPosition[5];\
+  uniform vec3  uModelLeftFootPosition[5];\
 \
   void main() {\
     float r = cos(vPosition.x);\
@@ -879,9 +884,10 @@ MeshedStage.prototype._FSHADER.src = '\
   varying float vAlpha;\
   uniform float uFrame;\
   uniform float uWidth;\
-  uniform vec3  uModelCenterPosition;\
-  uniform vec3  uModelRightFootPosition;\
-  uniform vec3  uModelLeftFootPosition;\
+  uniform int   uModelNum;\
+  uniform vec3  uModelCenterPosition[5];\
+  uniform vec3  uModelRightFootPosition[5];\
+  uniform vec3  uModelLeftFootPosition[5];\
 \
   const float tileSize = 5.0;\
   const float pi = 3.1415926535;\
@@ -897,13 +903,19 @@ MeshedStage.prototype._FSHADER.src = '\
     float b = 0.0;\
     float alpha = vAlpha;\
     vec2 tile = getTile(vPosition.xz);\
-    vec2 ctile = getTile(uModelCenterPosition.xz);\
-    vec2 ltile = getTile(uModelLeftFootPosition.xz);\
-    vec2 rtile = getTile(uModelRightFootPosition.xz);\
 \
-    if(tile == ltile || tile == rtile) {\
-      gl_FragColor = vec4(vec3(1.0, 0.5, 0.5)*s, alpha);\
-      return;\
+    for(int i = 0; i < 5; i++) {\
+      if(i >= uModelNum)\
+        break;\
+\
+      vec2 ctile = getTile(uModelCenterPosition[i].xz);\
+      vec2 ltile = getTile(uModelLeftFootPosition[i].xz);\
+      vec2 rtile = getTile(uModelRightFootPosition[i].xz);\
+\
+      if(tile == ltile || tile == rtile) {\
+        gl_FragColor = vec4(vec3(1.0, 0.5, 0.5)*s, alpha);\
+        return;\
+      }\
     }\
 \
     tile = vec2(mod(tile.x, 2.0), mod(tile.y, 2.0));\
@@ -936,9 +948,10 @@ TrialStage.prototype._FSHADER.src = '\
   varying float vAlpha;\
   uniform float uFrame;\
   uniform float uWidth;\
-  uniform vec3  uModelCenterPosition;\
-  uniform vec3  uModelRightFootPosition;\
-  uniform vec3  uModelLeftFootPosition;\
+  uniform int   uModelNum;\
+  uniform vec3  uModelCenterPosition[5];\
+  uniform vec3  uModelRightFootPosition[5];\
+  uniform vec3  uModelLeftFootPosition[5];\
 \
   const int num = 8;\
   const int unitAngle = 360 / num;\
@@ -955,7 +968,13 @@ TrialStage.prototype._FSHADER.src = '\
     float ax = abs(mod(uTime*0.4, 100.0) - 50.0);\
     float ay = abs(mod(uTime*0.6, 100.0) - 50.0);\
     float rad = radians(float(unitAngle * i) + uTime*1.0);\
-    vec2 val = getVec2(uModelCenterPosition);\
+    vec2 val = vec2(0, 0);\
+    for(int i = 0; i < 5; i++) {\
+      if(i >= uModelNum)\
+        break;\
+      val += getVec2(uModelCenterPosition[i]);\
+    }\
+    val = val / float(uModelNum);\
     float x = val.x + ax * cos(rad);\
     float y = val.y + ay * sin(rad);\
     return vec2(x, y);\
