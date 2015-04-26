@@ -51,11 +51,11 @@ Only .pmd now. .pmx and .x would come soon.
 Choose light model. Reduce the number of models show up. Turn off Physics, Stage, Edge and Post-effect.
 
 ## dependencies
-[Ammo.js](https://github.com/kripken/ammo.js/)
+- [Ammo.js](https://github.com/kripken/ammo.js/)
 
-[glMatrix](https://github.com/toji/gl-matrix)
+- [glMatrix](https://github.com/toji/gl-matrix)
 
-[whammy.js](https://github.com/antimatter15/whammy)
+- [whammy.js](https://github.com/antimatter15/whammy)
 
 No Three.js, yeah!
 
