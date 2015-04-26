@@ -57,5 +57,7 @@ Choose light model. Reduce the number of models show up. Turn off Physics, Stage
 
 [whammy.js](https://github.com/antimatter15/whammy)
 
+No Three.js, yeah!
+
 ## Link
 [MMD official site](http://www.geocities.jp/higuchuu4/index_e.htm)
