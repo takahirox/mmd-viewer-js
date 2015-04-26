@@ -1,4 +1,4 @@
-# mmd-viewer
+# mmd-viewer-js
 MMD model dances on your chrome with WebGL. (MMD(MikuMikuDance) is a 3D CG animation tool)
 
 ## Demo
