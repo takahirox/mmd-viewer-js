@@ -105,10 +105,13 @@ PMDView.prototype._STAGE_1   = 1;
 PMDView.prototype._STAGE_2   = 2;
 PMDView.prototype._STAGE_3   = 3;
 
-PMDView.prototype._EFFECT_OFF       = 0x0;
-PMDView.prototype._EFFECT_BLUR      = 0x1;
-PMDView.prototype._EFFECT_GAUSSIAN  = 0x2;
-PMDView.prototype._EFFECT_DIFFUSION = 0x4;
+PMDView.prototype._EFFECT_OFF         = 0x0;
+PMDView.prototype._EFFECT_BLUR        = 0x1;
+PMDView.prototype._EFFECT_GAUSSIAN    = 0x2;
+PMDView.prototype._EFFECT_DIFFUSION   = 0x4;
+PMDView.prototype._EFFECT_DIVISION    = 0x8;
+PMDView.prototype._EFFECT_LOW_RESO    = 0x10;
+PMDView.prototype._EFFECT_FACE_MOSAIC = 0x20;
 
 PMDView._PHYSICS_OFF        = PMDView.prototype._PHYSICS_OFF;
 PMDView._PHYSICS_ON         = PMDView.prototype._PHYSICS_ON;
@@ -146,10 +149,13 @@ PMDView._STAGE_1   = PMDView.prototype._STAGE_1;
 PMDView._STAGE_2   = PMDView.prototype._STAGE_2;
 PMDView._STAGE_3   = PMDView.prototype._STAGE_3;
 
-PMDView._EFFECT_OFF       = PMDView.prototype._EFFECT_OFF;
-PMDView._EFFECT_BLUR      = PMDView.prototype._EFFECT_BLUR;
-PMDView._EFFECT_GAUSSIAN  = PMDView.prototype._EFFECT_GAUSSIAN;
-PMDView._EFFECT_DIFFUSION = PMDView.prototype._EFFECT_DIFFUSION;
+PMDView._EFFECT_OFF         = PMDView.prototype._EFFECT_OFF;
+PMDView._EFFECT_BLUR        = PMDView.prototype._EFFECT_BLUR;
+PMDView._EFFECT_GAUSSIAN    = PMDView.prototype._EFFECT_GAUSSIAN;
+PMDView._EFFECT_DIFFUSION   = PMDView.prototype._EFFECT_DIFFUSION;
+PMDView._EFFECT_DIVISION    = PMDView.prototype._EFFECT_DIVISION;
+PMDView._EFFECT_LOW_RESO    = PMDView.prototype._EFFECT_LOW_RESO;
+PMDView._EFFECT_FACE_MOSAIC = PMDView.prototype._EFFECT_FACE_MOSAIC;
 
 
 PMDView.prototype.addModelView = function(view) {
@@ -463,10 +469,14 @@ PMDView.prototype.draw = function() {
   var gl = layer.gl;
   var shader = layer.shader;
 
+  // TODO: temmporal
   var postEffect =
    (this.effectFlag & this._EFFECT_BLUR)      ? layer.postEffects['blur'] :
    (this.effectFlag & this._EFFECT_GAUSSIAN)  ? layer.postEffects['gaussian'] :
    (this.effectFlag & this._EFFECT_DIFFUSION) ? layer.postEffects['diffusion'] :
+   (this.effectFlag & this._EFFECT_DIVISION)  ? layer.postEffects['division'] :
+   (this.effectFlag & this._EFFECT_LOW_RESO)  ? layer.postEffects['low_reso'] :
+   (this.effectFlag & this._EFFECT_FACE_MOSAIC) ? layer.postEffects['face_mosaic'] :
                                                 null;
 
   var postShader = (postEffect === null) ? null : postEffect.shader;
@@ -492,7 +502,8 @@ PMDView.prototype.draw = function() {
 
   if(this.effectFlag != this._EFFECT_OFF) {
     gl.useProgram(postShader);
-    postEffect.draw();
+    postShader.frame = this.frame;
+    postEffect.draw(this);
     gl.useProgram(shader);
   }
 };

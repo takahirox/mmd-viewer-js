@@ -45,6 +45,8 @@ function PMD() {
   this.centerBone = {};
   this.leftFootBone = {};
   this.rightFootBone = {};
+  this.leftEyeBone = {};
+  this.rightEyeBone = {};
 };
 
 
@@ -109,10 +111,12 @@ PMD.prototype.toRight = function() {
  * TODO: change strings if sjis-lib is used
  */
 PMD.prototype._keepSomeBonesInfo = function() {
-  // センター, 左足首, 右足首
+  // センター, 左足首, 右足首, 左目, 右目
   this._keepBoneInfo(this.centerBone,    '0x830x5a0x830x930x830x5e0x810x5b');
   this._keepBoneInfo(this.leftFootBone,  '0x8d0xb60x910xab0x8e0xf1');
   this._keepBoneInfo(this.rightFootBone, '0x890x450x910xab0x8e0xf1');
+  this._keepBoneInfo(this.leftEyeBone,   '0x8d0xb60x960xda');
+  this._keepBoneInfo(this.rightEyeBone,  '0x890x450x960xda');
 };
 
 

@@ -415,10 +415,16 @@ Layer.prototype._initShader = function(gl) {
 }
 
 
+/**
+ * TODO: temporal
+ */
 Layer.prototype._initPostEffects = function() {
-  this.postEffects['blur']      = new BlurEffect(this);
-  this.postEffects['gaussian']  = new GaussianBlurEffect(this);
-  this.postEffects['diffusion'] = new DiffusionBlurEffect(this);
+  this.postEffects['blur']        = new BlurEffect(this);
+  this.postEffects['gaussian']    = new GaussianBlurEffect(this);
+  this.postEffects['diffusion']   = new DiffusionBlurEffect(this);
+  this.postEffects['division']    = new DivisionEffect(this);
+  this.postEffects['low_reso']    = new LowResolutionEffect(this);
+  this.postEffects['face_mosaic'] = new FaceMosaicEffect(this);
 };
 
 
@@ -1121,6 +1127,7 @@ PostEffect.prototype._FSHADER.src = '\
   precision mediump float;\
   uniform float uWidth;\
   uniform float uHeight;\
+  uniform float uFrame;\
   uniform sampler2D uSampler;\
   uniform sampler2D uSampler2;\
 \
@@ -1138,7 +1145,6 @@ PostEffect.prototype._init = function() {
   this._initAttributes(this.shader, gl);
   this._initUniforms(this.shader, gl);
   this._initBuffers(this.shader, gl);
-  this._initWidthHeight(this.shader, gl);
   this._initMatrices(this.shader, gl);
   this._initParams(this.shader, gl);
   this._initFrameBuffers(this.shader, gl);
@@ -1175,10 +1181,16 @@ PostEffect.prototype._initUniforms = function(shader, gl) {
     gl.getUniformLocation(shader, 'uWidth');
   shader.heightUniformLocation =
     gl.getUniformLocation(shader, 'uHeight');
+  shader.frameUniformLocation =
+    gl.getUniformLocation(shader, 'uFrame');
   shader.samplerUniformLocation =
     gl.getUniformLocation(shader, 'uSampler');
   shader.sampler2UniformLocation =
     gl.getUniformLocation(shader, 'uSampler2');
+
+  shader.width = this.layer.canvas.width;
+  shader.height = this.layer.canvas.height;
+  shader.frame = 0;
 };
 
 
@@ -1206,12 +1218,6 @@ PostEffect.prototype._initBuffers = function(shader, gl) {
 
   shader.pBuffer = pBuffer;
   shader.iBuffer = iBuffer;
-};
-
-
-PostEffect.prototype._initWidthHeight = function(shader, gl) {
-  shader.width = this.layer.canvas.width;
-  shader.height = this.layer.canvas.height;
 };
 
 
@@ -1322,12 +1328,13 @@ PostEffect.prototype._bindIndices = function() {
 };
 
 
-PostEffect.prototype._setUniforms = function(n) {
+PostEffect.prototype._setUniforms = function(n, params) {
   var shader = this.shader;
   var gl = this.layer.gl;
   gl.uniformMatrix4fv(shader.mvpMatrixUniformLocation, false, shader.mvpMatrix);
   gl.uniform1f(shader.widthUniformLocation, shader.width);
   gl.uniform1f(shader.heightUniformLocation, shader.height);
+  gl.uniform1f(shader.frameUniformLocation, shader.frame);
 };
 
 
@@ -1375,6 +1382,13 @@ PostEffect.prototype._enableConditions = function() {
 };
 
 
+/**
+ * override in child class.
+ */
+PostEffect.prototype._setParams = function(n, params) {
+};
+
+
 PostEffect.prototype._draw = function() {
   var shader = this.shader;
   var gl = this.layer.gl;
@@ -1384,11 +1398,11 @@ PostEffect.prototype._draw = function() {
 };
 
 
-PostEffect.prototype.draw = function() {
+PostEffect.prototype.draw = function(params) {
   for(var i = 0; i < this.shader.pathNum; i++) {
     this._bindFrameBuffer(i);
     this._bindAttributes();
-    this._setUniforms(i);
+    this._setUniforms(i, params);
     this._bindIndices();
     this._bindFrameTextures(i);
     this._enableConditions();
@@ -1486,6 +1500,7 @@ GaussianBlurEffect.prototype._FSHADER.src = '\
   precision mediump float;\
   uniform float uWidth;\
   uniform float uHeight;\
+  uniform float uFrame;\
   uniform sampler2D uSampler;\
   uniform sampler2D uSampler2;\
   uniform float     uWeight[10];\
@@ -1562,8 +1577,8 @@ GaussianBlurEffect.prototype._initParams = function(shader, gl) {
 
 
 __copyParentMethod(GaussianBlurEffect, PostEffect, '_setUniforms');
-GaussianBlurEffect.prototype._setUniforms = function(n) {
-  this.PostEffect_setUniforms(n);
+GaussianBlurEffect.prototype._setUniforms = function(n, params) {
+  this.PostEffect_setUniforms(n, params);
 
   var shader = this.shader;
   var gl = this.layer.gl;
@@ -1571,7 +1586,6 @@ GaussianBlurEffect.prototype._setUniforms = function(n) {
   gl.uniform1fv(shader.weightUniformLocation, shader.weight);
   gl.uniform1i(shader.isXUniformLocation, n == 0 ? 1 : 0);
 };
-
 
 
 
@@ -1588,6 +1602,7 @@ DiffusionBlurEffect.prototype._FSHADER.src = '\
   precision mediump float;\
   uniform float uWidth;\
   uniform float uHeight;\
+  uniform float uFrame;\
   uniform sampler2D uSampler;\
   uniform sampler2D uSampler2;\
   uniform float     uWeight[10];\
@@ -1670,8 +1685,8 @@ DiffusionBlurEffect.prototype._initParams = function(shader, gl) {
 
 
 __copyParentMethod(DiffusionBlurEffect, PostEffect, '_setUniforms');
-DiffusionBlurEffect.prototype._setUniforms = function(n) {
-  this.PostEffect_setUniforms(n);
+DiffusionBlurEffect.prototype._setUniforms = function(n, params) {
+  this.PostEffect_setUniforms(n, params);
 
   var shader = this.shader;
   var gl = this.layer.gl;
@@ -1679,3 +1694,206 @@ DiffusionBlurEffect.prototype._setUniforms = function(n) {
   gl.uniform1fv(shader.weightUniformLocation, shader.weight);
   gl.uniform1i(shader.isXUniformLocation, n == 0 ? 1 : 0);
 };
+
+
+
+function DivisionEffect(layer) {
+  this.parent = PostEffect;
+  this.parent.call(this, layer, 1);
+};
+__inherit(DivisionEffect, PostEffect);
+
+
+/* from http://clemz.io/article-retro-shaders-rayman-legends */
+DivisionEffect.prototype._FSHADER = {};
+DivisionEffect.prototype._FSHADER.type = 'x-shader/x-fragment';
+DivisionEffect.prototype._FSHADER.src = '\
+  precision mediump float;\
+  uniform float uWidth;\
+  uniform float uHeight;\
+  uniform float uFrame;\
+  uniform sampler2D uSampler;\
+  uniform sampler2D uSampler2;\
+\
+  void main() {\
+    const float n = 2.0;\
+    vec2 st = vec2(1.0 / uWidth, 1.0 / uHeight);\
+    vec2 pos = mod(gl_FragCoord.st * st, 1.0 / n) * n;\
+    gl_FragColor = texture2D(uSampler, pos);\
+  }\
+';
+
+
+
+function LowResolutionEffect(layer) {
+  this.parent = PostEffect;
+  this.parent.call(this, layer, 1);
+};
+__inherit(LowResolutionEffect, PostEffect);
+
+
+/* from http://clemz.io/article-retro-shaders-rayman-legends */
+LowResolutionEffect.prototype._FSHADER = {};
+LowResolutionEffect.prototype._FSHADER.type = 'x-shader/x-fragment';
+LowResolutionEffect.prototype._FSHADER.src = '\
+  precision mediump float;\
+  uniform float uWidth;\
+  uniform float uHeight;\
+  uniform float uFrame;\
+  uniform sampler2D uSampler;\
+  uniform sampler2D uSampler2;\
+\
+  void main() {\
+    const float n = 50.0;\
+    vec2 st = vec2(1.0 / uWidth, 1.0 / uHeight);\
+    vec2 pos = gl_FragCoord.st * st;\
+    pos = floor(pos * n) / n;\
+    gl_FragColor = texture2D(uSampler, pos);\
+  }\
+';
+
+
+
+/* the idea is from https://github.com/i-saint/Unity5Effects */
+function FaceMosaicEffect(layer) {
+  this.parent = PostEffect;
+  this.parent.call(this, layer, 1);
+};
+__inherit(FaceMosaicEffect, PostEffect);
+
+
+FaceMosaicEffect.prototype._FSHADER = {};
+FaceMosaicEffect.prototype._FSHADER.type = 'x-shader/x-fragment';
+FaceMosaicEffect.prototype._FSHADER.src = '\
+  precision mediump float;\
+  uniform float uWidth;\
+  uniform float uHeight;\
+  uniform float uFrame;\
+  uniform int   uModelNum;\
+  uniform vec3  uModelFacePositions[5];\
+  uniform float uModelFaceAngles[5];\
+  uniform sampler2D uSampler;\
+  uniform sampler2D uSampler2;\
+\
+  void main() {\
+    const float n = 50.0;\
+    const float xSize = 0.05;\
+    const float ySize = 0.02;\
+    vec2 st = vec2(1.0 / uWidth, 1.0 / uHeight);\
+    vec2 pos = gl_FragCoord.st * st;\
+    for(int i = 0; i < 5; i++) {\
+      if(i >= uModelNum)\
+        break;\
+\
+      vec3 fpos = uModelFacePositions[i];\
+      float angle = uModelFaceAngles[i];\
+      vec2 dpos = pos - fpos.xy;\
+      vec2 apos = vec2( dpos.x * cos(angle) + dpos.y * sin(angle), \
+                       -dpos.x * sin(angle) + dpos.y * cos(angle));\
+      if(apos.x > -xSize / fpos.z && \
+         apos.x <  xSize / fpos.z && \
+         apos.y > -ySize / fpos.z && \
+         apos.y <  ySize / fpos.z) {\
+        pos = floor(pos * n) / n;\
+        break;\
+      }\
+    }\
+    gl_FragColor = texture2D(uSampler, pos);\
+  }\
+';
+
+
+FaceMosaicEffect.prototype._initUniforms = function(shader, gl) {
+  this.parent.prototype._initUniforms.call(this, shader, gl);
+
+  shader.modelNumUniformLocation =
+    gl.getUniformLocation(shader, 'uModelNum');
+  shader.modelFacePositionsUniformLocation =
+    gl.getUniformLocation(shader, 'uModelFacePositions');
+  shader.modelFaceAnglesUniformLocation =
+    gl.getUniformLocation(shader, 'uModelFaceAngles');
+};
+
+
+/**
+ * TODO: temporal
+ */
+__copyParentMethod(FaceMosaicEffect, PostEffect, '_setUniforms');
+FaceMosaicEffect.prototype._setUniforms = function(n, params) {
+  this.PostEffect_setUniforms(n);
+
+  var shader = this.shader;
+  var gl = this.layer.gl;
+
+  var view = params; // PMDView
+
+  var mvMatrix = this.layer.mvMatrix;
+  var pMatrix = this.layer.pMatrix;
+  var mvpMatrix = this.mat4.create();
+
+  this.mat4.multiply(pMatrix, mvMatrix, mvpMatrix);
+
+  var width = this.layer.gl.width;
+  var height = this.layer.gl.height;
+  var near = 0.1;
+  var far = 2000.0;
+
+  var num = 0;
+  var array = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  var angles = [0, 0, 0, 0, 0];
+  for(var i = 0; i < view.getModelNum(); i++) {
+    var v = view.modelViews[i];
+    var le = v.pmd.leftEyeBone;
+    var re = v.pmd.rightEyeBone;
+
+    if(le.id === null || re.id === null)
+      continue;
+
+    var a1 = v.skinningOneBone(le);
+    var a2 = v.skinningOneBone(re);
+    a1[3] = 1.0;
+    a2[3] = 1.0;
+
+    var a = [(a1[0] + a2[0]) / 2.0,
+             (a1[1] + a2[1]) / 2.0,
+             (a1[2] + a2[2]) / 2.0,
+             1.0];
+
+    this.mat4.multiplyVec4(mvpMatrix, a, a)
+    this.mat4.multiplyVec4(mvpMatrix, a1, a1)
+    this.mat4.multiplyVec4(mvpMatrix, a2, a2)
+
+    a[0] = a[0] / a[3];
+    a[1] = a[1] / a[3];
+    a[2] = a[2] / a[3];
+    a[0] = (a[0] + 1.0) / 2.0;
+    a[1] = (a[1] + 1.0) / 2.0;
+    a[2] = (a[2] + 1.0) / 2.0;
+    a1[0] = a1[0] / a1[3];
+    a1[1] = a1[1] / a1[3];
+    a1[2] = a1[2] / a1[3];
+    a1[0] = (a1[0] + 1.0) / 2.0;
+    a1[1] = (a1[1] + 1.0) / 2.0;
+    a1[2] = (a1[2] + 1.0) / 2.0;
+    a2[0] = a2[0] / a2[3];
+    a2[1] = a2[1] / a2[3];
+    a2[2] = a2[2] / a2[3];
+    a2[0] = (a2[0] + 1.0) / 2.0;
+    a2[1] = (a2[1] + 1.0) / 2.0;
+    a2[2] = (a2[2] + 1.0) / 2.0;
+
+    var angle = this.Math.atan2(a2[1] - a1[1], a2[0] - a1[0]);
+
+    angles[num] = angle;
+    array[num*3+0] = a[0];
+    array[num*3+1] = a[1];
+    array[num*3+2] = a[2];
+    num++;
+  }
+
+  gl.uniform3fv(shader.modelFacePositionsUniformLocation, array);
+  gl.uniform1fv(shader.modelFaceAnglesUniformLocation, angles);
+  gl.uniform1i(shader.modelNumUniformLocation, num);
+};
+
+
