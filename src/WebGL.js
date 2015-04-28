@@ -305,6 +305,9 @@ Layer.prototype._initVertexShader = function(gl) {
   if(this.gl.getParameter(this.gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) <= 0) {
     params.src = params.src.replace('texture2D(uVTF, getUV(index))',
                                     'vec4(0.0)');
+    params.src = params.src.replace(
+        'vLightWeighting.rgb *= texture2D(uToonTexture, toonCoord).rgb',
+        'vLightWeighting.rgb *= vec3(1.0)');
   }
 
   return this.compileShader(gl, params.src, params.type);
