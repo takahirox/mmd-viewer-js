@@ -575,12 +575,14 @@ PMDModelView.prototype.update = function(dframe) {
  * TODO: multiple post effect support.
  * TODO: optimize
  */
-PMDModelView.prototype.draw = function() {
+PMDModelView.prototype.draw = function(flag) {
   var layer = this.layer;
   var gl = layer.gl;
   var shader = layer.shader;
 
-  this._drawMain();
+  this._drawMain(flag);
+  if(flag !== undefined && flag)
+    return;
   if(this.view.edgeType == this.view._EDGE_ON) {
     this._drawEdge();
   }
@@ -591,7 +593,7 @@ PMDModelView.prototype.draw = function() {
  * TODO: temporal
  * TODO: optimize
  */
-PMDModelView.prototype._drawMain = function() {
+PMDModelView.prototype._drawMain = function(flag) {
   var layer = this.layer;
   var gl = this.layer.gl;
   var shader = this.layer.shader;
@@ -624,6 +626,11 @@ PMDModelView.prototype._drawMain = function() {
       gl.uniform1i(shader.shadowUniform, 0);
 
     // TODO: temporal
+    if(flag !== undefined && flag) {
+      gl.disable(gl.BLEND);
+      gl.disable(gl.CULL_FACE);
+      gl.cullFace(gl.FRONT);
+    } else
     if(this.view.edgeType == this.view._EDGE_ON && m.color[3] == 1.0) {
       gl.enable(gl.CULL_FACE);
       gl.cullFace(gl.BACK);

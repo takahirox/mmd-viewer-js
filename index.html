@@ -215,6 +215,17 @@ var __sphereMaps = [
 ];
 
 
+var __shadowMappings = [
+  {name: 'Shadow mapping OFF',
+   value: PMDView._SHADOW_MAPPING_OFF,
+   selected: true},
+  {name: 'Shadow mapping ON',
+   value: PMDView._SHADOW_MAPPING_ON},
+  {name: 'Shadow mapping ONLY',
+   value: PMDView._SHADOW_MAPPING_ONLY},
+];
+
+
 var __edges = [
   {name: 'Edge OFF',
    value: PMDView._EDGE_OFF},
@@ -305,6 +316,7 @@ var __ikSelect;
 var __morphSelect;
 var __stageSelect;
 var __sphereMapSelect;
+var __shadowMappingSelect;
 var __runTypeSelect;
 var __effectSelect;
 var __edgeSelect;
@@ -350,6 +362,7 @@ var __initState = function() {
   __morphSelect.disabled             = false;
   __stageSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
+  __shadowMappingSelect.disabled     = false;
   __runTypeSelect.disabled           = false;
   __effectSelect.disabled            = false;
   __edgeSelect.disabled              = false;
@@ -375,6 +388,7 @@ var __loadingFileState = function() {
   __morphSelect.disabled             = true;
   __stageSelect.disabled             = true;
   __sphereMapSelect.disabled         = true;
+  __shadowMappingSelect.disabled     = true;
   __runTypeSelect.disabled           = true;
   __effectSelect.disabled            = true;
   __skinningSelect.disabled          = true;
@@ -401,6 +415,7 @@ var __pmdFileLoadedState = function() {
   __morphSelect.disabled             = false;
   __stageSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
+  __shadowMappingSelect.disabled     = false;
   __runTypeSelect.disabled           = false;
   __effectSelect.disabled            = false;
   __skinningSelect.disabled          = true;
@@ -425,6 +440,7 @@ var __vmdFileLoadedState = function() {
   __morphSelect.disabled             = false;
   __stageSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
+  __shadowMappingSelect.disabled     = false;
   __runTypeSelect.disabled           = false;
   __effectSelect.disabled            = false;
   __skinningSelect.disabled          = true;
@@ -450,6 +466,7 @@ var __danceReadyState = function() {
   __morphSelect.disabled             = false;
   __stageSelect.disabled             = false;
   __sphereMapSelect.disabled         = false;
+  __shadowMappingSelect.disabled     = false;
   __runTypeSelect.disabled           = false;
   __effectSelect.disabled            = false;
   __skinningSelect.disabled          = true;
@@ -538,6 +555,7 @@ var __init = function() {
   __morphSelect = document.getElementById('morphSelect');
   __stageSelect = document.getElementById('stageSelect');
   __sphereMapSelect = document.getElementById('sphereMapSelect');
+  __shadowMappingSelect = document.getElementById('shadowMappingSelect');
   __effectSelect = document.getElementById('effectSelect');
   __runTypeSelect = document.getElementById('runTypeSelect');
   __edgeSelect = document.getElementById('edgeSelect');
@@ -569,6 +587,7 @@ var __init = function() {
   __initSelect(__morphSelect, __morphs);
   __initSelect(__stageSelect, __stages);
   __initSelect(__sphereMapSelect, __sphereMaps);
+  __initSelect(__shadowMappingSelect, __shadowMappings);
   __initSelect(__runTypeSelect, __runTypes);
   __initSelect(__effectSelect, __effects);
   __initSelect(__edgeSelect, __edges);
@@ -871,6 +890,12 @@ var __sphereMapSelectChanged = function() {
 };
 
 
+var __shadowMappingSelectChanged = function() {
+  if(__pmdFileLoaded)
+    __setShadowMappingType(__pmdView);  // TODO: has accessed __pmdView
+};
+
+
 var __runTypeSelectChanged = function() {
   if(__pmdFileLoaded)
     __setRunType(__pmdView);  // TODO: has accessed __pmdView
@@ -953,6 +978,12 @@ var __setStageType = function(pmdView) {
 var __setSphereMapType = function(pmdView) {
   var index = parseInt(__sphereMapSelect.value);
   pmdView.setSphereMapType(__sphereMaps[index].value);
+};
+
+
+var __setShadowMappingType = function(pmdView) {
+  var index = parseInt(__shadowMappingSelect.value);
+  pmdView.setShadowMappingType(__shadowMappings[index].value);
 };
 
 
@@ -1173,11 +1204,13 @@ generate a video
 <select id="stageSelect"     onchange="__stageSelectChanged()"></select>
 <select id="sphereMapSelect" onchange="__sphereMapSelectChanged()"></select>
 <br />
+<select id="shadowMappingSelect"
+ onchange="__shadowMappingSelectChanged()"></select>
 <select id="edgeSelect" onchange="__edgeSelectChanged()"></select>
 <select id="skinningSelect" onchange="__skinningSelectChanged()"></select>
 <select id="runTypeSelect"  onchange="__runTypeSelectChanged()"></select>
-<select id="effectSelect"  onchange="__effectSelectChanged()"></select>
 <br />
+<select id="effectSelect"  onchange="__effectSelectChanged()"></select>
 <select id="lightingSelect" onchange="__lightingSelectChanged()"></select>
 Light <!--Color-->Strength
 <input type="range" id="lightColorRange" min="0.0" max="2.0" step="0.1"

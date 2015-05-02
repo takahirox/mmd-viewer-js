@@ -37,6 +37,7 @@ function PMDView(layer) {
   this.edgeType = null;
   this.morphType = null;
   this.sphereMapType = null;
+  this.shadowMappingType = null;
   this.lightColor = [0, 0, 0];
   this.runType = null;
   this.stageType = null;
@@ -49,6 +50,7 @@ function PMDView(layer) {
   this.setIKType(this._IK_ON);
   this.setMorphType(this._MORPH_ON);
   this.setSphereMapType(this._SPHERE_MAP_ON);
+  this.setShadowMappingType(this._SHADOW_MAPPING_OFF);
   this.setEdgeType(this._EDGE_ON);
   this.setRunType(this._RUN_FRAME_ORIENTED);
   this.setStageType(this._STAGE_2);
@@ -89,6 +91,10 @@ PMDView.prototype._MORPH_ON  = 1;
 
 PMDView.prototype._SPHERE_MAP_OFF = 0;
 PMDView.prototype._SPHERE_MAP_ON  = 1;
+
+PMDView.prototype._SHADOW_MAPPING_OFF  = 0;
+PMDView.prototype._SHADOW_MAPPING_ON   = 1;
+PMDView.prototype._SHADOW_MAPPING_ONLY = 2;
 
 PMDView.prototype._RUN_FRAME_ORIENTED    = 0;
 PMDView.prototype._RUN_REALTIME_ORIENTED = 1;
@@ -133,6 +139,10 @@ PMDView._MORPH_ON  = PMDView.prototype._MORPH_ON;
 
 PMDView._SPHERE_MAP_OFF = PMDView.prototype._SPHERE_MAP_OFF;
 PMDView._SPHERE_MAP_ON  = PMDView.prototype._SPHERE_MAP_ON;
+
+PMDView._SHADOW_MAPPING_OFF  = PMDView.prototype._SHADOW_MAPPING_OFF;
+PMDView._SHADOW_MAPPING_ON   = PMDView.prototype._SHADOW_MAPPING_ON;
+PMDView._SHADOW_MAPPING_ONLY = PMDView.prototype._SHADOW_MAPPING_ONLY;
 
 PMDView._RUN_FRAME_ORIENTED    = PMDView.prototype._RUN_FRAME_ORIENTED;
 PMDView._RUN_REALTIME_ORIENTED = PMDView.prototype._RUN_REALTIME_ORIENTED;
@@ -253,8 +263,14 @@ PMDView.prototype.setMorphType = function(type) {
   this.morphType = type;
 };
 
+
 PMDView.prototype.setSphereMapType = function(type) {
   this.sphereMapType = type;
+};
+
+
+PMDView.prototype.setShadowMappingType = function(type) {
+  this.shadowMappingType = type;
 };
 
 
@@ -479,6 +495,56 @@ PMDView.prototype.draw = function() {
    (this.effectFlag & this._EFFECT_FACE_MOSAIC) ? layer.postEffects['face_mosaic'] :
                                                 null;
 
+  if(this.shadowMappingType != this._SHADOW_MAPPING_OFF) {
+    if(this.shadowMappingType == this._SHADOW_MAPPING_ON) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.layer.shadowFrameBuffer.f);
+      gl.clearDepth(1.0);
+    } else {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    var angle = 60;
+    if(this.shadowMappingType == this._SHADOW_MAPPING_ON) {
+      gl.viewport(0, 0, 2048, 2048);
+      this.mat4.perspective(angle, 1, 0.1, 200.0, layer.pMatrix);
+    } else {
+      layer.viewport();
+      layer.perspective(angle, 0.1, 200.0);
+    }
+
+    layer.identity();
+    layer.lookAt(layer.lightDirection, [0, 0, 10], [0, 1, 0]);
+
+    gl.uniform1i(shader.shadowGenerationUniform, 1);
+    gl.uniform1i(shader.shadowTextureUniform, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    for(var i = 0; i < this.modelViews.length; i++) {
+      this.modelViews[i].draw(true);
+    }
+    gl.flush();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    gl.uniform1i(shader.shadowMappingUniform, 1);
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, this.layer.shadowFrameBuffer.t);
+    gl.uniform1i(shader.shadowTextureUniform, 4);
+    gl.uniformMatrix4fv(shader.lightMatrixUniform, false, layer.mvpMatrix);
+    this.lightMatrix = this.mat4.create();
+    this.mat4.set(layer.mvpMatrix, this.lightMatrix);
+
+    if(this.shadowMappingType == this._SHADOW_MAPPING_ONLY)
+      return;
+
+  } else {
+    gl.uniform1i(shader.shadowMappingUniform, 0);
+  }
+
+  this._setCamera();
+  this._setDrawParameters();
+
+  gl.uniform1i(shader.shadowGenerationUniform, 0);
+
   var postShader = (postEffect === null) ? null : postEffect.shader;
 
   if(this.effectFlag != this._EFFECT_OFF) {
@@ -487,8 +553,7 @@ PMDView.prototype.draw = function() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
-  this._setCamera();
-  this._setDrawParameters();
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   for(var i = 0; i < this.modelViews.length; i++) {
     this.modelViews[i].draw();
   }
@@ -570,7 +635,15 @@ PMDView.prototype._drawStage = function() {
   lfPos = [].concat.apply([], lfPos);
   rfPos = [].concat.apply([], rfPos);
 
-  stage.draw(this.frame, this.modelViews.length, cPos, lfPos, rfPos);
+  var sFlag = false;
+  var lMatrix = null;
+  if(this.shadowMappingType == this._SHADOW_MAPPING_ON) {
+    sFlag = true;
+    lMatrix = this.lightMatrix;
+  }
+
+  stage.draw(this.frame, this.modelViews.length, cPos, lfPos, rfPos,
+             sFlag, lMatrix);
 };
 
 

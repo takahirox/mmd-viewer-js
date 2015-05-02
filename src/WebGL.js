@@ -7,11 +7,14 @@ function Layer(canvas) {
   this.postEffects = {};
   this.mvMatrix = mat4.create();
   this.pMatrix = mat4.create();
+  this.mvpMatrix = mat4.create();
   this.textureID = 0;
-  this.lightDirection = [-30, 100, 50]; // TODO: temporal
+  this.lightDirection = [-20, 50, -40]; // TODO: temporal
   this.camera = null;
+  this.shadowFrameBuffer = null;
   this._initPostEffects();
   this._initStageShaders();
+  this._initShadowFrameBuffer();
 };
 
 // only for reference.
@@ -60,10 +63,14 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
   uniform bool uUseToon;\
   uniform bool uEdge;\
   uniform bool uShadow;\
+  uniform mat4 uLightMatrix;\
+  uniform bool uShadowGeneration;\
+  uniform bool uShadowMapping;\
 \
   varying vec2 vTextureCoordinates;\
   varying vec4 vLightWeighting;\
   varying vec3 vNormal;\
+  varying vec4 vShadowDepth;\
 \
   highp float binary32(vec4 rgba) {\
     rgba = floor(255.0 * rgba + 0.5);\
@@ -156,6 +163,15 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
     vTextureCoordinates = aTextureCoordinates;\
     vNormal = normalize(norm);\
 \
+    if(uShadowGeneration) {\
+      vShadowDepth = uPMatrix * uMVMatrix * vec4(pos, 1.0);\
+      return;\
+    }\
+\
+    if(uShadowMapping) {\
+      vShadowDepth = uLightMatrix * vec4(pos, 1.0);\
+    }\
+\
     if(uLightingType > 0) {\
       vec4 vertexPositionEye4 = uMVMatrix * vec4(pos, 1.0);\
       vec3 vertexPositionEye3 = vertexPositionEye4.xyz / vertexPositionEye4.w;\
@@ -208,14 +224,40 @@ Layer.prototype._SHADERS['shader-fs'].src = '\
   uniform bool uEdge;\
   uniform bool uUseSphereMap;\
   uniform bool uUseSphereMapAddition;\
+  uniform bool uShadowGeneration;\
+  uniform bool uShadowMapping;\
   uniform sampler2D uSphereTexture;\
+  uniform sampler2D uShadowTexture;\
   varying vec4 vLightWeighting;\
   varying vec3 vNormal;\
+  varying vec4 vShadowDepth;\
+\
+  vec4 packDepth(const in float depth) {\
+    const vec4 bitShift = vec4(256.0*256.0*256.0, 256.0*256.0, 256.0, 1.0);\
+    const vec4 bitMask  = vec4(0.0, 1.0/256.0, 1.0/256.0, 1.0/256.0);\
+    vec4 res = fract(depth * bitShift);\
+    res -= res.xxyz * bitMask;\
+    return res;\
+  }\
+\
+  float unpackDepth(const in vec4 rgba) {\
+    const vec4 bitShift = vec4(1.0/(256.0*256.0*256.0),\
+                               1.0/(256.0*256.0), 1.0/256.0, 1.0);\
+    float depth = dot(rgba, bitShift);\
+    return depth;\
+  }\
 \
   void main() {\
 \
     if(uEdge) {\
       gl_FragColor = vec4(vec3(0.0), vLightWeighting.a);\
+      return;\
+    }\
+\
+    if(uShadowGeneration) {\
+      gl_FragColor = packDepth(gl_FragCoord.z);\
+      vec3 lightCoord = vShadowDepth.xyz / vShadowDepth.w;\
+      gl_FragColor = packDepth(lightCoord.z);\
       return;\
     }\
 \
@@ -232,7 +274,21 @@ Layer.prototype._SHADERS['shader-fs'].src = '\
       }\
     }\
 \
-    gl_FragColor = vLightWeighting * textureColor;\
+    vec4 color = vLightWeighting * textureColor;\
+\
+    if(uShadowMapping) {\
+      vec3 lightCoord = vShadowDepth.xyz / vShadowDepth.w;\
+      vec4 rgbaDepth = texture2D(uShadowTexture, \
+                                 lightCoord.xy*0.5+0.5);\
+      float depth = unpackDepth(rgbaDepth);\
+/*      float depth2 = unpackDepth(packDepth(lightCoord.z));*/\
+      float depth2 = lightCoord.z;\
+      if(depth2 - 0.000000001 > depth) {\
+        color.rgb *= 0.7;\
+      }\
+    }\
+\
+    gl_FragColor = color;\
   }\
 ';
 
@@ -414,6 +470,15 @@ Layer.prototype._initShader = function(gl) {
   shader.useSphereMapAdditionUniform =
     gl.getUniformLocation(shader, 'uUseSphereMapAddition');
 
+  shader.shadowGenerationUniform =
+    gl.getUniformLocation(shader, 'uShadowGeneration');
+  shader.shadowMappingUniform =
+    gl.getUniformLocation(shader, 'uShadowMapping');
+  shader.shadowTextureUniform =
+    gl.getUniformLocation(shader, 'uShadowTexture');
+  shader.lightMatrixUniform =
+    gl.getUniformLocation(shader, 'uLightMatrix');
+
   return shader;
 }
 
@@ -438,9 +503,18 @@ Layer.prototype._initStageShaders = function() {
 };
 
 
+Layer.prototype._initShadowFrameBuffer = function() {
+  // TODO: super temporal
+  this.shader.width = 2048;
+  this.shader.height = 2048;
+  this.shadowFrameBuffer = this._createFrameBuffer(this.shader, this.gl);
+};
+
+
 Layer.prototype.setMatrixUniforms = function(gl) {
   gl.uniformMatrix4fv(this.shader.pMatrixUniform, false, this.pMatrix);
   gl.uniformMatrix4fv(this.shader.mvMatrixUniform, false, this.mvMatrix);
+  this.mat4.multiply(this.pMatrix, this.mvMatrix, this.mvpMatrix);
 
   var nMat = mat3.create();
   mat4.toInverseMat3(this.mvMatrix, nMat);
@@ -518,6 +592,38 @@ Layer.prototype.pourVTF = function(texture, array, width) {
                 gl.RGBA, gl.UNSIGNED_BYTE, array);
   gl.bindTexture(gl.TEXTURE_2D, null);
   gl.uniform1i(this.shader.uVTFWidthUniform, width);
+};
+
+
+Layer.prototype._createFrameBuffer = function(shader, gl) {
+  var width = shader.width;
+  var height = shader.height;
+
+  var frameBuffer = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+
+  var depthRenderBuffer = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderBuffer);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+                             gl.RENDERBUFFER, depthRenderBuffer);
+
+  var fTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, fTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height,
+                0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                          gl.TEXTURE_2D, fTexture, 0);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  return {f: frameBuffer, d: depthRenderBuffer, t: fTexture};
 };
 
 
@@ -615,13 +721,16 @@ StageShader.prototype._VSHADER.src = '\
   attribute float aAlpha;\
   uniform mat4 uMVMatrix;\
   uniform mat4 uPMatrix;\
+  uniform mat4 uLightMatrix;\
   varying vec3 vPosition;\
+  varying vec4 vShadowDepth;\
   varying float vAlpha;\
 \
   void main() {\
     gl_Position = uPMatrix * uMVMatrix * vec4(aPosition, 1.0);\
     vPosition = aPosition;\
     vAlpha = aAlpha;\
+    vShadowDepth = uLightMatrix * vec4(aPosition, 1.0);\
   }\
 ';
 
@@ -630,6 +739,7 @@ StageShader.prototype._FSHADER.type = 'x-shader/x-fragment';
 StageShader.prototype._FSHADER.src = '\
   precision mediump float;\
   varying vec3  vPosition;\
+  varying vec4  vShadowDepth;\
   varying float vAlpha;\
   uniform float uFrame;\
   uniform float uWidth;\
@@ -637,9 +747,40 @@ StageShader.prototype._FSHADER.src = '\
   uniform vec3  uModelCenterPosition[5];\
   uniform vec3  uModelRightFootPosition[5];\
   uniform vec3  uModelLeftFootPosition[5];\
+  uniform bool  uShadowMapping;\
+  uniform sampler2D uShadowTexture;\
+\
+  vec4 packDepth(const in float depth) {\
+    const vec4 bitShift = vec4(256.0*256.0*256.0, 256.0*256.0, 256.0, 1.0);\
+    const vec4 bitMask  = vec4(0.0, 1.0/256.0, 1.0/256.0, 1.0/256.0);\
+    vec4 res = fract(depth * bitShift);\
+    res -= res.xxyz * bitMask;\
+    return res;\
+  }\
+\
+  float unpackDepth(const in vec4 rgba) {\
+    const vec4 bitShift = vec4(1.0/(256.0*256.0*256.0),\
+                               1.0/(256.0*256.0), 1.0/256.0, 1.0);\
+    float depth = dot(rgba, bitShift);\
+    return depth;\
+  }\
 \
   void main() {\
-    gl_FragColor = vec4(vec3(0.0), vAlpha);\
+    vec4 color = vec4(vec3(0.0), vAlpha);\
+\
+    if(uShadowMapping) {\
+      vec3 lightCoord = vShadowDepth.xyz / vShadowDepth.w;\
+      vec4 rgbaDepth = texture2D(uShadowTexture, \
+                                 lightCoord.xy*0.5+0.5);\
+      float depth = unpackDepth(rgbaDepth);\
+/*      float depth2 = unpackDepth(packDepth(lightCoord.z));*/\
+      float depth2 = lightCoord.z;\
+      if(depth2 - 0.00008 > depth) {\
+        color.rgb *= 0.7;\
+      }\
+    }\
+\
+    gl_FragColor = color;\
   }\
 ';
 
@@ -696,6 +837,12 @@ StageShader.prototype._initUniforms = function(shader, gl) {
     gl.getUniformLocation(shader, 'uModelLeftFootPosition');
   shader.modelRightFootPositionUniformLocation =
     gl.getUniformLocation(shader, 'uModelRightFootPosition');
+  shader.lightMatrixUniformLocation =
+    gl.getUniformLocation(shader, 'uLightMatrix');
+  shader.shadowMappingUniformLocation =
+    gl.getUniformLocation(shader, 'uShadowMapping');
+  shader.shadowTextureUniformLocation =
+    gl.getUniformLocation(shader, 'uShadowTexture');
 };
 
 
@@ -787,7 +934,8 @@ StageShader.prototype._bindIndices = function() {
 /**
  * TODO: be param flexible
  */
-StageShader.prototype._setUniforms = function(frame, num, cPos, lfPos, rfPos) {
+StageShader.prototype._setUniforms = function(frame, num, cPos, lfPos, rfPos,
+                                              sFlag, lMatrix) {
   var shader = this.shader;
   var gl = this.layer.gl;
 
@@ -809,6 +957,18 @@ StageShader.prototype._setUniforms = function(frame, num, cPos, lfPos, rfPos) {
 
   if(rfPos !== null)
     gl.uniform3fv(shader.modelRightFootPositionUniformLocation, rfPos);
+
+  if(sFlag) {
+    gl.uniform1i(shader.shadowMappingUniformLocation, 1);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.layer.shadowFrameBuffer.t);
+    gl.uniform1i(shader.shadowTextureUniformLocation, 1);
+    gl.uniformMatrix4fv(shader.lightMatrixUniformLocation, false, lMatrix);
+  } else {
+    gl.uniform1i(shader.shadowMappingUniformLocation, 0);
+    gl.uniform1i(shader.shadowTextureUniformLocation, 0);
+  }
+
 };
 
 
@@ -839,10 +999,11 @@ StageShader.prototype._draw = function() {
 /**
  * TODO: be param flexible
  */
-StageShader.prototype.draw = function(frame, num, cPos, lfPos, rfPos) {
+StageShader.prototype.draw = function(frame, num, cPos, lfPos, rfPos,
+                                      sFlag, lMatrix) {
   this.layer.gl.useProgram(this.shader);
   this._bindAttributes();
-  this._setUniforms(frame, num, cPos, lfPos, rfPos);
+  this._setUniforms(frame, num, cPos, lfPos, rfPos, sFlag, lMatrix);
   this._bindIndices();
   this._enableConditions();
   this._draw();
@@ -861,6 +1022,7 @@ SimpleStage.prototype._FSHADER.type = 'x-shader/x-fragment';
 SimpleStage.prototype._FSHADER.src = '\
   precision mediump float;\
   varying vec3  vPosition;\
+  varying vec4  vShadowDepth;\
   varying float vAlpha;\
   uniform float uFrame;\
   uniform float uWidth;\
@@ -868,11 +1030,40 @@ SimpleStage.prototype._FSHADER.src = '\
   uniform vec3  uModelCenterPosition[5];\
   uniform vec3  uModelRightFootPosition[5];\
   uniform vec3  uModelLeftFootPosition[5];\
+  uniform bool  uShadowMapping;\
+  uniform sampler2D uShadowTexture;\
+\
+  vec4 packDepth(const in float depth) {\
+    const vec4 bitShift = vec4(256.0*256.0*256.0, 256.0*256.0, 256.0, 1.0);\
+    const vec4 bitMask  = vec4(0.0, 1.0/256.0, 1.0/256.0, 1.0/256.0);\
+    vec4 res = fract(depth * bitShift);\
+    res -= res.xxyz * bitMask;\
+    return res;\
+  }\
+\
+  float unpackDepth(const in vec4 rgba) {\
+    const vec4 bitShift = vec4(1.0/(256.0*256.0*256.0),\
+                               1.0/(256.0*256.0), 1.0/256.0, 1.0);\
+    float depth = dot(rgba, bitShift);\
+    return depth;\
+  }\
 \
   void main() {\
     float r = cos(vPosition.x);\
     float g = cos(vPosition.z);\
-    gl_FragColor = vec4(r*g, r*g, r*g, vAlpha);\
+    vec4 color = vec4(vec3(r*g), vAlpha);\
+    if(uShadowMapping) {\
+      vec3 lightCoord = vShadowDepth.xyz / vShadowDepth.w;\
+      vec4 rgbaDepth = texture2D(uShadowTexture, \
+                                 lightCoord.xy*0.5+0.5);\
+      float depth = unpackDepth(rgbaDepth);\
+/*      float depth2 = unpackDepth(packDepth(lightCoord.z));*/\
+      float depth2 = lightCoord.z;\
+      if(depth != 0.0) {\
+        color.rgb *= 0.5;\
+      }\
+    }\
+    gl_FragColor = color;\
   }\
 ';
 
@@ -891,16 +1082,34 @@ MeshedStage.prototype._FSHADER.src = '\
   precision mediump float;\
   varying vec3  vPosition;\
   varying float vAlpha;\
+  varying vec4  vShadowDepth;\
   uniform float uFrame;\
   uniform float uWidth;\
   uniform int   uModelNum;\
   uniform vec3  uModelCenterPosition[5];\
   uniform vec3  uModelRightFootPosition[5];\
   uniform vec3  uModelLeftFootPosition[5];\
+  uniform bool  uShadowMapping;\
+  uniform sampler2D uShadowTexture;\
 \
   const float tileSize = 5.0;\
   const float pi = 3.1415926535;\
   const float circleRatio = 0.01;\
+\
+  vec4 packDepth(const in float depth) {\
+    const vec4 bitShift = vec4(256.0*256.0*256.0, 256.0*256.0, 256.0, 1.0);\
+    const vec4 bitMask  = vec4(0.0, 1.0/256.0, 1.0/256.0, 1.0/256.0);\
+    vec4 res = fract(depth * bitShift);\
+    res -= res.xxyz * bitMask;\
+    return res;\
+  }\
+\
+  float unpackDepth(const in vec4 rgba) {\
+    const vec4 bitShift = vec4(1.0/(256.0*256.0*256.0),\
+                               1.0/(256.0*256.0), 1.0/256.0, 1.0);\
+    float depth = dot(rgba, bitShift);\
+    return depth;\
+  }\
 \
   vec2 getTile(vec2 pos) {\
     return floor((pos + uWidth + (tileSize * 0.5)) / tileSize);\
@@ -912,6 +1121,19 @@ MeshedStage.prototype._FSHADER.src = '\
     float b = 0.0;\
     float alpha = vAlpha;\
     vec2 tile = getTile(vPosition.xz);\
+    float visibility = 1.0;\
+\
+    if(uShadowMapping) {\
+      vec3 lightCoord = vShadowDepth.xyz / vShadowDepth.w;\
+      vec4 rgbaDepth = texture2D(uShadowTexture, \
+                                 lightCoord.xy*0.5+0.5);\
+      float depth = unpackDepth(rgbaDepth);\
+/*      float depth2 = unpackDepth(packDepth(lightCoord.z));*/\
+      float depth2 = lightCoord.z;\
+      if(depth != 0.0) {\
+        visibility = 0.5;\
+      }\
+    }\
 \
     for(int i = 0; i < 5; i++) {\
       if(i >= uModelNum)\
@@ -922,7 +1144,7 @@ MeshedStage.prototype._FSHADER.src = '\
       vec2 rtile = getTile(uModelRightFootPosition[i].xz);\
 \
       if(tile == ltile || tile == rtile) {\
-        gl_FragColor = vec4(vec3(1.0, 0.5, 0.5)*s, alpha);\
+        gl_FragColor = vec4(vec3(1.0, 0.5, 0.5)*s*visibility, alpha);\
         return;\
       }\
     }\
@@ -934,9 +1156,9 @@ MeshedStage.prototype._FSHADER.src = '\
     }\
 \
     if(tile == vec2(0.0) || tile == vec2(1.0)) {\
-      gl_FragColor = vec4(vec3(1.0)+b, alpha);\
+      gl_FragColor = vec4((vec3(1.0)+b)*visibility, alpha);\
     } else {\
-      gl_FragColor = vec4(vec3(0.0)+b, alpha);\
+      gl_FragColor = vec4((vec3(0.0)+b)*visibility, alpha);\
     }\
   }\
 ';
@@ -954,6 +1176,7 @@ TrialStage.prototype._FSHADER.type = 'x-shader/x-fragment';
 TrialStage.prototype._FSHADER.src = '\
   precision mediump float;\
   varying vec3  vPosition;\
+  varying vec4  vShadowDepth;\
   varying float vAlpha;\
   uniform float uFrame;\
   uniform float uWidth;\
@@ -961,6 +1184,23 @@ TrialStage.prototype._FSHADER.src = '\
   uniform vec3  uModelCenterPosition[5];\
   uniform vec3  uModelRightFootPosition[5];\
   uniform vec3  uModelLeftFootPosition[5];\
+  uniform bool  uShadowMapping;\
+  uniform sampler2D uShadowTexture;\
+\
+  vec4 packDepth(const in float depth) {\
+    const vec4 bitShift = vec4(256.0*256.0*256.0, 256.0*256.0, 256.0, 1.0);\
+    const vec4 bitMask  = vec4(0.0, 1.0/256.0, 1.0/256.0, 1.0/256.0);\
+    vec4 res = fract(depth * bitShift);\
+    res -= res.xxyz * bitMask;\
+    return res;\
+  }\
+\
+  float unpackDepth(const in vec4 rgba) {\
+    const vec4 bitShift = vec4(1.0/(256.0*256.0*256.0),\
+                               1.0/(256.0*256.0), 1.0/256.0, 1.0);\
+    float depth = dot(rgba, bitShift);\
+    return depth;\
+  }\
 \
   const int num = 8;\
   const int unitAngle = 360 / num;\
@@ -997,7 +1237,20 @@ TrialStage.prototype._FSHADER.src = '\
       float dist = length(val - pos) * 6.0;\
       color += 5.0 / dist;\
     }\
-    gl_FragColor = vec4(vec3(color), vAlpha);\
+\
+    float visibility = 1.0;\
+\
+    if(uShadowMapping) {\
+      vec3 lightCoord = vShadowDepth.xyz / vShadowDepth.w;\
+      vec4 rgbaDepth = texture2D(uShadowTexture, \
+                                 lightCoord.xy*0.5+0.5);\
+      float depth = unpackDepth(rgbaDepth);\
+      if(depth != 0.0) {\
+        visibility = 0.5;\
+      }\
+    }\
+\
+    gl_FragColor = vec4(vec3(color)*visibility, vAlpha);\
   }\
 ';
 
@@ -1245,40 +1498,8 @@ PostEffect.prototype._initFrameBuffers = function(shader, gl) {
   shader.pathNum = this.pathNum;
   shader.frameBuffers = [];
   for(var i = 0; i < shader.pathNum; i++) {
-    shader.frameBuffers.push(this._createFrameBuffer(shader, gl));
+    shader.frameBuffers.push(this.layer._createFrameBuffer(shader, gl));
   }
-};
-
-
-PostEffect.prototype._createFrameBuffer = function(shader, gl) {
-  var width = shader.width;
-  var height = shader.height;
-
-  var frameBuffer = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-
-  var depthRenderBuffer = gl.createRenderbuffer();
-  gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderBuffer);
-  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
-  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
-                             gl.RENDERBUFFER, depthRenderBuffer);
-
-  var fTexture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, fTexture);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height,
-                0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                          gl.TEXTURE_2D, fTexture, 0);
-
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  return {f: frameBuffer, d: depthRenderBuffer, t: fTexture};
 };
 
 
