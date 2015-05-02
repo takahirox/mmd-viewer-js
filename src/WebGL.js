@@ -2,16 +2,21 @@ function Layer(canvas) {
   this.canvas = canvas;
   this.gl = this._initGl(canvas);
   this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
+  this.gl.clearDepth(1.0);
   this.shader = this._initShader(this.gl);
+
   this.stageShaders = [];
   this.postEffects = {};
-  this.mvMatrix = mat4.create();
-  this.pMatrix = mat4.create();
-  this.mvpMatrix = mat4.create();
-  this.textureID = 0;
+
+  this.mvMatrix = this.mat4.create();
+  this.pMatrix = this.mat4.create();
+  this.mvpMatrix = this.mat4.create();
+
   this.lightDirection = [-20, 50, -40]; // TODO: temporal
-  this.camera = null;
+  this.lightMatrix = this.mat4.create();
   this.shadowFrameBuffer = null;
+  this.shadowFrameBufferSize = 2048;
+
   this._initPostEffects();
   this._initStageShaders();
   this._initShadowFrameBuffer();
@@ -255,7 +260,7 @@ Layer.prototype._SHADERS['shader-fs'].src = '\
     }\
 \
     if(uShadowGeneration) {\
-      gl_FragColor = packDepth(gl_FragCoord.z);\
+/*      gl_FragColor = packDepth(gl_FragCoord.z);*/\
       vec3 lightCoord = vShadowDepth.xyz / vShadowDepth.w;\
       gl_FragColor = packDepth(lightCoord.z);\
       return;\
@@ -283,7 +288,7 @@ Layer.prototype._SHADERS['shader-fs'].src = '\
       float depth = unpackDepth(rgbaDepth);\
 /*      float depth2 = unpackDepth(packDepth(lightCoord.z));*/\
       float depth2 = lightCoord.z;\
-      if(depth2 - 0.000000001 > depth) {\
+      if(depth2 - 0.00002 > depth) {\
         color.rgb *= 0.7;\
       }\
     }\
