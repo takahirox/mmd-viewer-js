@@ -568,26 +568,8 @@ PMDModelView.prototype.update = function(dframe) {
 
   if(this.view.physicsType == this.view._PHYSICS_ON)
     this._runPhysics(dframe);
-};
 
-
-/**
- * TODO: multiple post effect support.
- * TODO: optimize
- */
-PMDModelView.prototype.draw = function(forShadowMapping) {
-  var layer = this.layer;
-  var gl = layer.gl;
-  var shader = layer.shader;
-
-  this._drawMain(forShadowMapping);
-
-  if(forShadowMapping)
-    return;
-
-  if(this.view.edgeType == this.view._EDGE_ON) {
-    this._drawEdge();
-  }
+  this._initMotionArrays();
 };
 
 
@@ -595,13 +577,12 @@ PMDModelView.prototype.draw = function(forShadowMapping) {
  * TODO: temporal
  * TODO: optimize
  */
-PMDModelView.prototype._drawMain = function(forShadowMapping) {
+PMDModelView.prototype.draw = function() {
   var layer = this.layer;
   var gl = this.layer.gl;
   var shader = this.layer.shader;
 
   this._bindBuffers();
-  this._initMotionArrays();
 
   // TODO: temporal
   if(this.view.skinningType == this.view._SKINNING_GPU) {
@@ -628,11 +609,6 @@ PMDModelView.prototype._drawMain = function(forShadowMapping) {
       gl.uniform1i(shader.shadowUniform, 0);
 
     // TODO: temporal
-    if(forShadowMapping) {
-      gl.disable(gl.BLEND);
-      gl.disable(gl.CULL_FACE);
-      gl.cullFace(gl.FRONT);
-    } else
     if(this.view.edgeType == this.view._EDGE_ON && m.color[3] == 1.0) {
       gl.enable(gl.CULL_FACE);
       gl.cullFace(gl.BACK);
@@ -678,7 +654,7 @@ PMDModelView.prototype._drawMain = function(forShadowMapping) {
 };
 
 
-PMDModelView.prototype._drawEdge = function() {
+PMDModelView.prototype.drawEdge = function() {
   var layer = this.layer;
   var gl = this.layer.gl;
   var shader = this.layer.shader;
@@ -689,13 +665,45 @@ PMDModelView.prototype._drawEdge = function() {
   gl.disable(gl.BLEND);
   gl.enable(gl.CULL_FACE);
 
+  // Note: attempt to call _draw() as less as possible
   var offset = 0;
+  var num = 0;
   for(var i = 0; i < this.pmd.materialCount; i++) {
-    var num = this.pmd.materials[i].vertexCount;
-    if(this.pmd.materials[i].edgeFlag)
-      this._draw(this.textures[i], offset, num);
-    offset += num;
+    num += this.pmd.materials[i].vertexCount;
+    if(! this.pmd.materials[i].edgeFlag) {
+      this._draw(this.textures[0], offset, num);
+      num = 0;
+      offset += num;
+    }
   }
+  if(num != 0)
+    this._draw(this.textures[0], offset, num);
+};
+
+
+PMDModelView.prototype.drawShadowMap = function() {
+  var layer = this.layer;
+  var gl = this.layer.gl;
+  var shader = this.layer.shader;
+
+  this._bindBuffers();
+
+  // TODO: temporal
+  if(this.view.skinningType == this.view._SKINNING_GPU) {
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.vtf);
+    gl.uniform1i(shader.uVTFUniform, 1);
+  } else {
+    gl.uniform1i(shader.uVTFUniform, 0);
+  }
+
+  gl.uniform1i(shader.edgeUniform, 0);
+
+  gl.disable(gl.BLEND);
+  gl.disable(gl.CULL_FACE);
+  gl.cullFace(gl.FRONT);
+
+  this._draw(this.textures[0], 0, this.pmd.vertexIndexCount);
 };
 
 

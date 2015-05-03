@@ -517,7 +517,7 @@ PMDView.prototype.draw = function() {
     gl.uniform1i(shader.shadowTextureUniform, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     for(var i = 0; i < this.modelViews.length; i++) {
-      this.modelViews[i].draw(true);
+      this.modelViews[i].drawShadowMap();
     }
     gl.flush();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -550,7 +550,10 @@ PMDView.prototype.draw = function() {
 
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   for(var i = 0; i < this.modelViews.length; i++) {
-    this.modelViews[i].draw(false);
+    this.modelViews[i].draw();
+    if(this.edgeType == this._EDGE_ON) {
+      this.modelViews[i].drawEdge();
+    }
   }
 
   if(this.stageType != this._STAGE_OFF) {
