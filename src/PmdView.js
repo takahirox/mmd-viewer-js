@@ -496,29 +496,26 @@ PMDView.prototype.draw = function() {
                                                 null;
 
   if(this.shadowMappingType != this._SHADOW_MAPPING_OFF) {
-    if(this.shadowMappingType == this._SHADOW_MAPPING_ON) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.layer.shadowFrameBuffer.f);
-      gl.clearDepth(1.0);
-    } else {
+    if(this.shadowMappingType == this._SHADOW_MAPPING_ONLY) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
-
-    var angle = 60;
-    if(this.shadowMappingType == this._SHADOW_MAPPING_ON) {
-      gl.viewport(0, 0, 2048, 2048);
-      this.mat4.perspective(angle, 1, 0.1, 200.0, layer.pMatrix);
-    } else {
       layer.viewport();
-      layer.perspective(angle, 0.1, 200.0);
+      layer.perspective(layer.viewAngle);
+    } else {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, layer.shadowFrameBuffer.f);
+      gl.viewport(0, 0,
+                  layer.shadowFrameBufferSize, layer.shadowFrameBufferSize);
+      this.mat4.perspective(layer.viewAngle, 1,
+                            layer.viewNear, layer.viewFar, layer.pMatrix);
     }
 
     layer.identity();
-    layer.lookAt(layer.lightDirection, [0, 0, 10], [0, 1, 0]);
+    layer.lookAt(layer.lightPosition, layer.lightCenter,
+                 layer.lightUpDirection);
+    layer.registerLightMatrix();
 
     gl.uniform1i(shader.shadowGenerationUniform, 1);
     gl.uniform1i(shader.shadowTextureUniform, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
     for(var i = 0; i < this.modelViews.length; i++) {
       this.modelViews[i].draw(true);
     }
@@ -529,9 +526,7 @@ PMDView.prototype.draw = function() {
     gl.activeTexture(gl.TEXTURE4);
     gl.bindTexture(gl.TEXTURE_2D, this.layer.shadowFrameBuffer.t);
     gl.uniform1i(shader.shadowTextureUniform, 4);
-    gl.uniformMatrix4fv(shader.lightMatrixUniform, false, layer.mvpMatrix);
-    this.lightMatrix = this.mat4.create();
-    this.mat4.set(layer.mvpMatrix, this.lightMatrix);
+    gl.uniformMatrix4fv(shader.lightMatrixUniform, false, layer.lightMatrix);
 
     if(this.shadowMappingType == this._SHADOW_MAPPING_ONLY)
       return;
@@ -555,7 +550,7 @@ PMDView.prototype.draw = function() {
 
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   for(var i = 0; i < this.modelViews.length; i++) {
-    this.modelViews[i].draw();
+    this.modelViews[i].draw(false);
   }
 
   if(this.stageType != this._STAGE_OFF) {
@@ -587,7 +582,7 @@ PMDView.prototype._setCamera = function() {
     this.vmd.getCalculatedCameraParams(this.eye, this.center, this.up);
   }
 
-  layer.perspective(angle, 0.1, 2000.0);
+  layer.perspective(angle);
   layer.identity();
 
   var eye = [0, 0, 0];
@@ -636,14 +631,12 @@ PMDView.prototype._drawStage = function() {
   rfPos = [].concat.apply([], rfPos);
 
   var sFlag = false;
-  var lMatrix = null;
   if(this.shadowMappingType == this._SHADOW_MAPPING_ON) {
     sFlag = true;
-    lMatrix = this.lightMatrix;
   }
 
   stage.draw(this.frame, this.modelViews.length, cPos, lfPos, rfPos,
-             sFlag, lMatrix);
+             sFlag, layer.lightMatrix);
 };
 
 
@@ -669,5 +662,5 @@ PMDView.prototype._moveLight = function() {
 
   this.layer.gl.uniform3fv(this.layer.shader.lightColorUniform,
                            light.color);
-  this.layer.lightDirection = light.location;
+  this.layer.lightPosition = light.location;
 };

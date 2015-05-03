@@ -1,9 +1,13 @@
 function Layer(canvas) {
   this.canvas = canvas;
   this.gl = this._initGl(canvas);
+  this.shader = this._initShader(this.gl);
+
+  this.viewNear = 0.1;
+  this.viewFar = 2000.0;
+  this.viewAngle = 60;
   this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
   this.gl.clearDepth(1.0);
-  this.shader = this._initShader(this.gl);
 
   this.stageShaders = [];
   this.postEffects = {};
@@ -12,10 +16,13 @@ function Layer(canvas) {
   this.pMatrix = this.mat4.create();
   this.mvpMatrix = this.mat4.create();
 
-  this.lightDirection = [-20, 50, -40]; // TODO: temporal
+ // TODO: temporal
+  this.lightPosition = [-20, 50, -40];
+  this.lightCenter = [0, 0, 10];
+  this.lightUpDirection = [0, 1, 0];
   this.lightMatrix = this.mat4.create();
   this.shadowFrameBuffer = null;
-  this.shadowFrameBufferSize = 2048;
+  this.shadowFrameBufferSize = 1024;
 
   this._initPostEffects();
   this._initStageShaders();
@@ -509,10 +516,10 @@ Layer.prototype._initStageShaders = function() {
 
 
 Layer.prototype._initShadowFrameBuffer = function() {
-  // TODO: super temporal
-  this.shader.width = 2048;
-  this.shader.height = 2048;
-  this.shadowFrameBuffer = this._createFrameBuffer(this.shader, this.gl);
+  var width = this.shadowFrameBufferSize;
+  var height = this.shadowFrameBufferSize;
+  this.shadowFrameBuffer =
+    this._createFrameBuffer(this.shader, this.gl, width, height);
 };
 
 
@@ -527,12 +534,17 @@ Layer.prototype.setMatrixUniforms = function(gl) {
   gl.uniformMatrix3fv(this.shader.nMatrixUniform, false, nMat);
 
   //  TODO: temporal
-  var lightDirection = vec3.normalize(vec3.create(this.lightDirection));
+  var lightDirection = vec3.normalize(vec3.create(this.lightPosition));
   var nMat4 = mat4.create();
   mat3.toMat4(nMat, nMat4);
   mat4.multiplyVec3(nMat4, lightDirection, lightDirection);
   gl.uniform3fv(this.shader.lightDirectionUniform, lightDirection);
 }
+
+
+Layer.prototype.registerLightMatrix = function() {
+  this.mat4.multiply(this.pMatrix, this.mvMatrix, this.lightMatrix);
+};
 
 
 Layer.prototype.viewport = function() {
@@ -545,15 +557,15 @@ Layer.prototype.clear = function() {
 };
 
 
-Layer.prototype.perspective = function(theta, near, far) {
-  this.mat4.perspective(theta, this.gl.viewportWidth / this.gl.viewportHeight,
-                   near, far, this.pMatrix);
+Layer.prototype.perspective = function(angle) {
+  this.mat4.perspective(angle, this.gl.viewportWidth / this.gl.viewportHeight,
+                        this.viewNear, this.viewFar, this.pMatrix);
 };
 
 
 Layer.prototype.ortho = function(near, far) {
   this.mat4.ortho(0, this.gl.viewportWidth, -this.gl.viewportHeight, 0,
-             near, far, this.pMatrix);
+                  near, far, this.pMatrix);
 };
 
 
@@ -600,10 +612,7 @@ Layer.prototype.pourVTF = function(texture, array, width) {
 };
 
 
-Layer.prototype._createFrameBuffer = function(shader, gl) {
-  var width = shader.width;
-  var height = shader.height;
-
+Layer.prototype._createFrameBuffer = function(shader, gl, width, height) {
   var frameBuffer = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
 
@@ -1503,7 +1512,8 @@ PostEffect.prototype._initFrameBuffers = function(shader, gl) {
   shader.pathNum = this.pathNum;
   shader.frameBuffers = [];
   for(var i = 0; i < shader.pathNum; i++) {
-    shader.frameBuffers.push(this.layer._createFrameBuffer(shader, gl));
+    shader.frameBuffers.push(
+      this.layer._createFrameBuffer(shader, gl, shader.width, shader.height));
   }
 };
 
