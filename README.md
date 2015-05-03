@@ -13,6 +13,8 @@ MMD model dances on your chrome with WebGL. (MMD(MikuMikuDance) is a 3D CG anima
 
 ![Screen shot3](http://f.st-hatena.com/images/fotolife/t/takahirox/20150425/20150425214707.png)
 
+![Screen shot4](http://f.st-hatena.com/images/fotolife/t/takahirox/20150502/20150502185946.png)
+
 ## Instruction
 
 ### How to start
