@@ -1,7 +1,49 @@
-/**
- * TODO: manage resources
- */
 function PhysicsEntity() {
+  this.workNum = 10;
+  this.workTrs = [];
+  this.workQs = [];
+  this.workVs = [];
+  for(var i = 0; i < this.workNum; i++) {
+    this.workTrs[i] = new Ammo.btTransform();
+    this.workQs[i] = new Ammo.btQuaternion();
+    this.workVs[i] = new Ammo.btVector3();
+  }
+};
+
+
+PhysicsEntity.prototype.allocTr = function() {
+  var tr = this.workTrs[this.workTrs.length-1];
+  this.workTrs.length--;
+  return tr;
+};
+
+
+PhysicsEntity.prototype.freeTr = function(tr) {
+  this.workTrs[this.workTrs.length] = tr;
+};
+
+
+PhysicsEntity.prototype.allocQ = function() {
+  var q = this.workQs[this.workQs.length-1];
+  this.workQs.length--;
+  return q;
+};
+
+
+PhysicsEntity.prototype.freeQ = function(q) {
+  this.workQs[this.workQs.length] = q;
+};
+
+
+PhysicsEntity.prototype.allocV = function() {
+  var v = this.workVs[this.workVs.length-1];
+  this.workVs.length--;
+  return v;
+};
+
+
+PhysicsEntity.prototype.freeV = function(v) {
+  this.workVs[this.workVs.length] = v;
 };
 
 
@@ -27,7 +69,7 @@ PhysicsEntity.prototype._setIdentity = function(tr) {
  * @param tr btTransform i
  */
 PhysicsEntity.prototype._getBasis = function(tr) {
-  var q = new Ammo.btQuaternion();
+  var q = this.allocQ();
   tr.getBasis().getRotation(q);
   return q;
 };
@@ -40,7 +82,7 @@ PhysicsEntity.prototype._getBasis = function(tr) {
 PhysicsEntity.prototype._getBasisMatrix3 = function(tr) {
   var q = this._getBasis(tr);
   var m = this._quaternionToMatrix3(q);
-  Ammo.destroy(q);
+  this.freeQ(q);
   return m;
 };
 
@@ -65,7 +107,7 @@ PhysicsEntity.prototype._setBasis = function(tr, q) {
 PhysicsEntity.prototype._setBasisMatrix3 = function(tr, m) {
   var q = this._matrix3ToQuaternion(m);
   this._setBasis(tr, q);
-  Ammo.destroy(q);
+  this.freeQ(q);
 };
 
 
@@ -78,7 +120,7 @@ PhysicsEntity.prototype._setBasisMatrix3 = function(tr, m) {
 PhysicsEntity.prototype._setBasisArray4 = function(tr, a) {
   var q = this._array4ToQuaternion(a);
   this._setBasis(tr, q);
-  Ammo.destroy(q);
+  this.freeQ(q);
 };
 
 
@@ -205,8 +247,8 @@ PhysicsEntity.prototype._copyOrigin = function(tr1, tr2) {
  * @param v2 btVector3 i
  * @return btVector3
  */
-PhysicsEntity.prototype._addVectors3 = function(v1, v2) {
-  var v = new Ammo.btVector3();
+PhysicsEntity.prototype._addVector3 = function(v1, v2) {
+  var v = this.allocV();
   v.setValue(v1.x() + v2.x(),
              v1.y() + v2.y(),
              v1.z() + v2.z());
@@ -221,7 +263,7 @@ PhysicsEntity.prototype._addVectors3 = function(v1, v2) {
  * @return btVector3
  */
 PhysicsEntity.prototype._addVector3ByArray3 = function(v, a) {
-  var v2 = new Ammo.btVector3();
+  var v2 = this.allocV();
   v2.setValue(v.x() + a[0],
               v.y() + a[1],
               v.z() + a[2]);
@@ -249,7 +291,7 @@ PhysicsEntity.prototype._dotVectors3 = function(v1, v2) {
  * @return btVector3
  */
 PhysicsEntity.prototype._rowOfMatrix3 = function(m, i) {
-  var v = new Ammo.btVector3();
+  var v = this.allocV();
   v.setValue(m[i*3+0], m[i*3+1], m[i*3+2]);
   return v;
 };
@@ -262,7 +304,7 @@ PhysicsEntity.prototype._rowOfMatrix3 = function(m, i) {
  * @return btVector3
  */
 PhysicsEntity.prototype._columnOfMatrix3 = function(m, i) {
-  var v = new Ammo.btVector3();
+  var v = this.allocV();
   v.setValue(m[i+0], m[i+3], m[i+6]);
   return v;
 };
@@ -274,7 +316,7 @@ PhysicsEntity.prototype._columnOfMatrix3 = function(m, i) {
  * @return btVector3
  */
 PhysicsEntity.prototype._negativeVector3 = function(v) {
-  var v2 = new Ammo.btVector3();
+  var v2 = this.allocV();
   v2.setValue(-v.x(), -v.y(), -v.z());
   return v2;
 };
@@ -286,7 +328,7 @@ PhysicsEntity.prototype._negativeVector3 = function(v) {
  * @return btVector3
  */
 PhysicsEntity.prototype._cloneVector3 = function(v) {
-  var v2 = new Ammo.btVector3();
+  var v2 = this.allocV();
   v2.setValue(v.x(), v.y(), v.z());
   return v2;
 };
@@ -312,7 +354,7 @@ PhysicsEntity.prototype._cloneMatrix3 = function(m) {
  * @return btVector3
  */
 PhysicsEntity.prototype._array3ToVector3 = function(a) {
-  var v = new Ammo.btVector3();
+  var v = this.allocV();
   v.setValue(a[0], a[1], a[2]);
   return v;
 };
@@ -339,7 +381,7 @@ PhysicsEntity.prototype._vector3ToArray3 = function(v) {
  * @return btQuaternion
  */
 PhysicsEntity.prototype._array4ToQuaternion = function(a) {
-  var q = new Ammo.btQuaternion();
+  var q = this.allocQ();
   q.setX(a[0]);
   q.setY(a[1]);
   q.setZ(a[2]);
@@ -439,7 +481,7 @@ PhysicsEntity.prototype._quaternionToEulerZYX = function(q) {
  * @return btTransform
  */
 PhysicsEntity.prototype._multiplyTransforms = function(tr1, tr2) {
-  var tr = new Ammo.btTransform();
+  var tr = this.allocTr();
   tr.setIdentity();
 
   var m1 = this._getBasisMatrix3(tr1);
@@ -449,14 +491,14 @@ PhysicsEntity.prototype._multiplyTransforms = function(tr1, tr2) {
   var o2 = this._getOrigin(tr2);
 
   var v1 = this._multiplyMatrix3ByVector3(m1, o2);
-  var v2 = this._addVectors3(v1, o1);
+  var v2 = this._addVector3(v1, o1);
   this._setOrigin(tr, v2);
 
   var m3 = this._multiplyMatrices3(m1, m2);
   this._setBasisMatrix3(tr, m3);
 
-  Ammo.destroy(v1);
-  Ammo.destroy(v2);
+  this.freeV(v1);
+  this.freeV(v2);
 
   return tr;
 };
@@ -470,7 +512,7 @@ PhysicsEntity.prototype._multiplyTransforms = function(tr1, tr2) {
  * @return btTransform
  */
 PhysicsEntity.prototype._inverseTransform = function(tr) {
-  var tr2 = new Ammo.btTransform();
+  var tr2 = this.allocTr();
 
   var m1 = this._getBasisMatrix3(tr);
   var o = this._getOrigin(tr);
@@ -482,8 +524,8 @@ PhysicsEntity.prototype._inverseTransform = function(tr) {
   this._setOrigin(tr2, v2);
   this._setBasisMatrix3(tr2, m2);
 
-  Ammo.destroy(v1);
-  Ammo.destroy(v2);
+  this.freeV(v1);
+  this.freeV(v2);
 
   return tr2;
 };
@@ -500,9 +542,9 @@ PhysicsEntity.prototype._multiplyTransformByVector3 = function(tr, v) {
   var m = this._getBasisMatrix3(tr);
   var o = this._getOrigin(tr);
   var v2 = this._multiplyMatrix3ByVector3(m, v);
-  var v3 = this._addVectors3(v2, o);
+  var v3 = this._addVector3(v2, o);
 
-  Ammo.destroy(v2);
+  this.freeV(v2);
 
   return v3;
 };
@@ -515,7 +557,7 @@ PhysicsEntity.prototype._multiplyTransformByVector3 = function(tr, v) {
  * @return btVector3
  */
 PhysicsEntity.prototype._multiplyMatrix3ByVector3 = function(m, v) {
-  var v4 = new Ammo.btVector3();
+  var v4 = this.allocV();
 
   var v0 = this._rowOfMatrix3(m, 0);
   var v1 = this._rowOfMatrix3(m, 1);
@@ -526,9 +568,9 @@ PhysicsEntity.prototype._multiplyMatrix3ByVector3 = function(m, v) {
 
   v4.setValue(x, y, z);
 
-  Ammo.destroy(v0);
-  Ammo.destroy(v1);
-  Ammo.destroy(v2);
+  this.freeV(v0);
+  this.freeV(v1);
+  this.freeV(v2);
 
   return v4;
 };
@@ -561,12 +603,12 @@ PhysicsEntity.prototype._multiplyMatrices3 = function(m1, m2) {
   m3[7] = this._dotVectors3(v12, v21);
   m3[8] = this._dotVectors3(v12, v22);
 
-  Ammo.destroy(v10);
-  Ammo.destroy(v11);
-  Ammo.destroy(v12);
-  Ammo.destroy(v20);
-  Ammo.destroy(v21);
-  Ammo.destroy(v22);
+  this.freeV(v10);
+  this.freeV(v11);
+  this.freeV(v12);
+  this.freeV(v20);
+  this.freeV(v21);
+  this.freeV(v22);
 
   return m3;
 };
@@ -696,7 +738,7 @@ PhysicsEntity.prototype._matrix3ToQuaternion = function(m) {
     z = 0.25 * s;
   }
 
-  var q = new Ammo.btQuaternion();
+  var q = this.allocQ();
   q.setX(x);
   q.setY(y);
   q.setZ(z);
@@ -716,7 +758,7 @@ PhysicsEntity.prototype._dumpTransform = function(tr) {
   str += '-- matrix --\n';
   str += this._dumpMatrix3(this._getBasisMatrix3(tr));
 
-  Ammo.destroy(q);
+  this.freeQ(q);
 
   return str;
 };
@@ -761,17 +803,18 @@ PhysicsRigidBody.prototype._init = function() {
 
   var shape = this._generateShape(body);
   var weight = (body.type == 0) ? 0 : body.weight;
-  var localInertia = new Ammo.btVector3(0, 0, 0);
+  var localInertia = this.allocV();
+  localInertia.setValue(0, 0, 0);
 
   if(weight != 0)
     shape.calculateLocalInertia(weight, localInertia);
 
-  var boneOffsetForm = this._newTransform();
+  var boneOffsetForm = this.allocTr();
   this._setIdentity(boneOffsetForm);
   this._setOriginArray3Left(boneOffsetForm, body.position);
   this._setBasisArray3Left(boneOffsetForm, body.rotation);
 
-  var boneForm = this._newTransform();
+  var boneForm = this.allocTr();
   this._setIdentity(boneForm);
   // TODO: temporal workaround
   var pos = (this.body.boneIndex == 0xFFFF) ? [0, 0, 0] : bone.position;
@@ -800,9 +843,9 @@ PhysicsRigidBody.prototype._init = function() {
   this.boneOffsetForm = boneOffsetForm;
   this.boneOffsetFormInverse = this._inverseTransform(boneOffsetForm);
 
-  Ammo.destroy(localInertia);
-  Ammo.destroy(form);
-  Ammo.destroy(boneForm);
+  this.freeV(localInertia);
+  this.freeTr(form);
+  this.freeTr(boneForm);
 };
 
 
@@ -854,7 +897,7 @@ PhysicsRigidBody.prototype._setTransformFromBone = function(motions) {
      isNaN(m.r[0]) || isNaN(m.r[1]) || isNaN(m.r[2]) || isNaN(m.r[3]))
     return;
 
-  var tr = this._newTransform();
+  var tr = this.allocTr();
   this._setOriginArray3Left(tr, m.p);
   this._setBasisArray4Left(tr, m.r);
 
@@ -865,8 +908,8 @@ PhysicsRigidBody.prototype._setTransformFromBone = function(motions) {
   this.rb.setCenterOfMassTransform(form);
   this.rb.getMotionState().setWorldTransform(form);
 
-  Ammo.destroy(tr);
-  Ammo.destroy(form);
+  this.freeTr(tr);
+  this.freeTr(form);
 };
 
 
@@ -880,13 +923,13 @@ PhysicsRigidBody.prototype._setPositionFromBone = function(motions) {
      isNaN(m.r[0]) || isNaN(m.r[1]) || isNaN(m.r[2]) || isNaN(m.r[3]))
     return;
 
-  var tr = this._newTransform();
+  var tr = this.allocTr();
   this._setOriginArray3Left(tr, m.p);
   this._setBasisArray4Left(tr, m.r);
 
   var form = this._multiplyTransforms(tr, this.boneOffsetForm);
 
-  var tr2 = this._newTransform();
+  var tr2 = this.allocTr();
   this.rb.getMotionState().getWorldTransform(tr2);
   this._copyOrigin(tr2, form);
 
@@ -895,9 +938,9 @@ PhysicsRigidBody.prototype._setPositionFromBone = function(motions) {
   this.rb.setCenterOfMassTransform(tr2);
   this.rb.getMotionState().setWorldTransform(tr2);
 
-  Ammo.destroy(tr);
-  Ammo.destroy(tr2);
-  Ammo.destroy(form);
+  this.freeTr(tr);
+  this.freeTr(tr2);
+  this.freeTr(form);
 };
 
 
@@ -908,7 +951,7 @@ PhysicsRigidBody.prototype.postSimulation = function(motions) {
 
   var m = motions[this.body.boneIndex];
 
-  var tr = this._newTransform();
+  var tr = this.allocTr();
   this.rb.getMotionState().getWorldTransform(tr);
   var tr2 = this._multiplyTransforms(tr, this.boneOffsetFormInverse);
 
@@ -927,9 +970,9 @@ PhysicsRigidBody.prototype.postSimulation = function(motions) {
     m.p[2] = -o.z();
   }
 
-  Ammo.destroy(q);
-  Ammo.destroy(tr);
-  Ammo.destroy(tr2);
+  this.freeQ(q);
+  this.freeTr(tr);
+  this.freeTr(tr2);
 };
 
 
@@ -976,7 +1019,7 @@ PhysicsConstraint.prototype._init = function() {
   }
 
 
-  var form = this._newTransform();
+  var form = this.allocTr();
   this._setOriginArray3Left(form, joint.position);
   this._setBasisArray3Left(form, joint.rotation);
 
@@ -993,18 +1036,23 @@ PhysicsConstraint.prototype._init = function() {
                          rb1, rb2, r1Form2, r2Form2, true);
 
   // Left to Right
-  var lll = new Ammo.btVector3( joint.translationLimitation1[0],
-                                joint.translationLimitation1[1],
-                               -joint.translationLimitation2[2]);
-  var lul = new Ammo.btVector3( joint.translationLimitation2[0],
-                                joint.translationLimitation2[1],
-                               -joint.translationLimitation1[2]);
-  var all = new Ammo.btVector3(-joint.rotationLimitation2[0],
-                               -joint.rotationLimitation2[1],
-                                joint.rotationLimitation1[2]);
-  var aul = new Ammo.btVector3(-joint.rotationLimitation1[0],
-                               -joint.rotationLimitation1[1],
-                                joint.rotationLimitation2[2]);
+  var lll = this.allocV();
+  var lul = this.allocV();
+  var all = this.allocV();
+  var aul = this.allocV();
+
+  lll.setValue( joint.translationLimitation1[0],
+                joint.translationLimitation1[1],
+               -joint.translationLimitation2[2]);
+  lul.setValue( joint.translationLimitation2[0],
+                joint.translationLimitation2[1],
+               -joint.translationLimitation1[2]);
+  all.setValue(-joint.rotationLimitation2[0],
+               -joint.rotationLimitation2[1],
+                joint.rotationLimitation1[2]);
+  aul.setValue(-joint.rotationLimitation1[0],
+               -joint.rotationLimitation1[1],
+                joint.rotationLimitation2[2]);
 
   constraint.setLinearLowerLimit(lll);
   constraint.setLinearUpperLimit(lul);
@@ -1028,17 +1076,17 @@ PhysicsConstraint.prototype._init = function() {
   this.world.addConstraint(constraint, true);
   this.constraint = constraint;
 
-  Ammo.destroy(form);
+  this.freeTr(form);
   Ammo.destroy(r1Form);
   Ammo.destroy(r2Form);
-  Ammo.destroy(r1FormInverse);
-  Ammo.destroy(r2FormInverse);
-  Ammo.destroy(r1Form2);
-  Ammo.destroy(r2Form2);
-  Ammo.destroy(lll);
-  Ammo.destroy(lul);
-  Ammo.destroy(all);
-  Ammo.destroy(aul);
+  this.freeTr(r1FormInverse);
+  this.freeTr(r2FormInverse);
+  this.freeTr(r1Form2);
+  this.freeTr(r2Form2);
+  this.freeV(lll);
+  this.freeV(lul);
+  this.freeV(all);
+  this.freeV(aul);
 };
 
 
@@ -1143,7 +1191,7 @@ Physics.prototype.simulateFrame = function(motions, dframe) {
   if(dframe >= 3) {
     g.setY(-10*10);
     this.world.setGravity(g);
-    Ammo.destroy(g);
+    Ammo.destroy(g); // TODO: is this necessary?
   }
 };
 
