@@ -168,17 +168,18 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
       }\
     } else {\
       pos = aVertexPosition + aVertexMorph;\
-      norm = qtransform(aVertexNormal, vec4(0, 0, 0, 1));\
+      norm = normalize(aVertexNormal);\
     }\
 \
     gl_Position = uPMatrix * uMVMatrix * vec4(pos, 1.0);\
-    vTextureCoordinates = aTextureCoordinates;\
-    vNormal = normalize(norm);\
 \
     if(uShadowGeneration) {\
       vShadowDepth = uPMatrix * uMVMatrix * vec4(pos, 1.0);\
       return;\
     }\
+\
+    vTextureCoordinates = aTextureCoordinates;\
+    vNormal = normalize(norm);\
 \
     if(uShadowMapping) {\
       vShadowDepth = uLightMatrix * vec4(pos, 1.0);\

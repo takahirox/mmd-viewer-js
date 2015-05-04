@@ -496,10 +496,8 @@ var __videoGenerationCheckboxState = function() {
     __audioSelect.disabled = false;
   }
 
-  if(__pmdFileLoaded) {
-    __setRunType(__pmdView);
-    __setAudioType(__pmdView);
-  }
+  __setRunType(__pmdView);
+  __setAudioType(__pmdView);
 };
 
 
@@ -516,9 +514,7 @@ var __audioSelectedState = function() {
       __runTypeSelect.disabled = false;
   }
 
-  if(__pmdFileLoaded) {
-    __setRunType(__pmdView);
-  }
+  __setRunType(__pmdView);
 };
 
 
@@ -535,9 +531,7 @@ var __motionSelectedState = function() {
     __audioSelect.disabled = true;
   }
 
-  if(__pmdFileLoaded) {
-    __setAudioType(__pmdView);
-  }
+  __setAudioType(__pmdView);
 };
 
 
@@ -861,82 +855,69 @@ var __startDance = function() {
 
 
 var __physicsSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setPhysicsType(__pmdView);  // TODO: has accessed __pmdView
+  __setPhysicsType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __ikSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setIKType(__pmdView);  // TODO: has accessed __pmdView
+  __setIKType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __morphSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setMorphType(__pmdView);  // TODO: has accessed __pmdView
+  __setMorphType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __stageSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setStageType(__pmdView);  // TODO: has accessed __pmdView
+  __setStageType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __sphereMapSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setSphereMapType(__pmdView);  // TODO: has accessed __pmdView
+  __setSphereMapType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __shadowMappingSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setShadowMappingType(__pmdView);  // TODO: has accessed __pmdView
+  __setShadowMappingType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __runTypeSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setRunType(__pmdView);  // TODO: has accessed __pmdView
+  __setRunType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __effectSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setEffectFlag(__pmdView);  // TODO: has accessed __pmdView
+  __setEffectFlag(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __edgeSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setEdgeType(__pmdView);  // TODO: has accessed __pmdView
+  __setEdgeType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __skinningSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setSkinningType(__pmdView);  // TODO: has accessed __pmdView
+  __setSkinningType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __lightingSelectChanged = function() {
-  if(__pmdFileLoaded)
-    __setLightingType(__pmdView);  // TODO: has accessed __pmdView
+  __setLightingType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __lightColorRangeChanged = function() {
   __updateLightColorSpan();
-  if(__pmdFileLoaded)
-    __setLightColor(__pmdView);  // TODO: has accessed __pmdView
+  __setLightColor(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
 var __audioSelectChanged = function() {
   __audioSelectedState();
-  if(__pmdFileLoaded)
-    __setAudioType(__pmdView);  // TODO: has accessed __pmdView
+  __setAudioType(__pmdView);  // TODO: has accessed __pmdView
 };
 
 
