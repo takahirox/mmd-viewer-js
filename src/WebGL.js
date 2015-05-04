@@ -140,11 +140,11 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
     vec3 norm;\
     if(uSkinningType == 2) {\
       vec3 v1 = aVertexPosition1 + aVertexMorph;\
-      vec3 v2 = aVertexPosition2 + aVertexMorph;\
       v1 = qtransform(v1, aMotionRotation1) + aMotionTranslation1;\
-      v2 = qtransform(v2, aMotionRotation2) + aMotionTranslation2;\
       norm = qtransform(aVertexNormal, aMotionRotation1);\
       if(aBoneWeight < 0.99) {\
+        vec3 v2 = aVertexPosition2 + aVertexMorph;\
+        v2 = qtransform(v2, aMotionRotation2) + aMotionTranslation2;\
         pos = mix(v2, v1, aBoneWeight);\
         vec3 n2 = qtransform(aVertexNormal, aMotionRotation2);\
         norm = normalize(mix(n2, norm, aBoneWeight));\
@@ -153,13 +153,13 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
       }\
     } else if(uSkinningType == 1) {\
       float b1 = floor(aBoneIndices.x + 0.5);\
-      float b2 = floor(aBoneIndices.y + 0.5);\
       vec3 v1 = aVertexPosition1 + aVertexMorph;\
-      vec3 v2 = aVertexPosition2 + aVertexMorph;\
       v1 = qtransform(v1, getMotionRotation(b1)) + getMotionTranslation(b1);\
-      v2 = qtransform(v2, getMotionRotation(b2)) + getMotionTranslation(b2);\
       norm = qtransform(aVertexNormal, getMotionRotation(b1));\
       if(aBoneWeight < 0.99) {\
+        float b2 = floor(aBoneIndices.y + 0.5);\
+        vec3 v2 = aVertexPosition2 + aVertexMorph;\
+        v2 = qtransform(v2, getMotionRotation(b2)) + getMotionTranslation(b2);\
         pos = mix(v2, v1, aBoneWeight);\
         vec3 n2 = qtransform(aVertexNormal, getMotionRotation(b2));\
         norm = normalize(mix(n2, norm, aBoneWeight));\
@@ -174,7 +174,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
     gl_Position = uPMatrix * uMVMatrix * vec4(pos, 1.0);\
 \
     if(uShadowGeneration) {\
-      vShadowDepth = uPMatrix * uMVMatrix * vec4(pos, 1.0);\
+      vShadowDepth = gl_Position;\
       return;\
     }\
 \
@@ -185,7 +185,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
       vShadowDepth = uLightMatrix * vec4(pos, 1.0);\
     }\
 \
-    if(uLightingType > 0) {\
+    if(! uEdge && uLightingType > 0) {\
       vec4 vertexPositionEye4 = uMVMatrix * vec4(pos, 1.0);\
       vec3 vertexPositionEye3 = vertexPositionEye4.xyz / vertexPositionEye4.w;\
       vec3 vectorToLightSource = normalize(uLightDirection -\

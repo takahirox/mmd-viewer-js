@@ -668,15 +668,20 @@ PMDModelView.prototype.drawEdge = function() {
   // Note: attempt to call _draw() as less as possible
   var offset = 0;
   var num = 0;
+  var flag = false;
   for(var i = 0; i < this.pmd.materialCount; i++) {
     num += this.pmd.materials[i].vertexCount;
     if(! this.pmd.materials[i].edgeFlag) {
-      this._draw(this.textures[0], offset, num);
-      num = 0;
+      if(flag)
+        this._draw(this.textures[0], offset, num);
       offset += num;
+      num = 0;
+      flag = false;
+    } else {
+      flag = true;
     }
   }
-  if(num != 0)
+  if(flag)
     this._draw(this.textures[0], offset, num);
 };
 
