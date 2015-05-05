@@ -559,7 +559,9 @@ PMDModelView.prototype.update = function(dframe) {
 
   if(this.dancing) {
     this._moveBone(dframe);
-    this._moveFace();
+    if(this.view.morphType == this.view._MORPH_ON) {
+      this._moveFace();
+    }
   }
 
   for(var i = 0; i < this.pmd.boneCount; i++) {
@@ -742,9 +744,6 @@ PMDModelView.prototype._loadFromVMD = function(dframe) {
  * TODO: any ways to avoid update all morph Buffer?
  */
 PMDModelView.prototype._moveFace = function() {
-  if(this.view.morphType == this.view._MORPH_OFF)
-    return;
-
   var done = false;
   for(var i = 0; i < this.pmd.faceCount; i++) {
     var f = this.vmd.getFace(this.pmd.faces[i]);
@@ -829,44 +828,35 @@ PMDModelView.prototype._getOriginalBoneMotion = function(bone) {
 };
 
 
-/**
- * copied from MMD.js so far
- */
 PMDModelView.prototype._getBoneMotion = function(index) {
   var motion = this.motions[index];
-  if(motion.done) {
-    return motion;
+  if(! motion.done) {
+    this._resolveFK(motion, index);
   }
+  return motion;
+};
 
+
+PMDModelView.prototype._resolveFK = function(motion, index) {
   // TODO: temporal work around
   var m = this._getOriginalBoneMotion(this.pmd.bones[index]);
 
-  var r = this.quat4.set(m.rotation, motion.r);
-  var t = this.vec3.create();
-  this.vec3.set(m.location, t);
-  if(this.pmd.bones[index].parentIndex == 0xFFFF)
-    this.vec3.add(t, this.basePosition, t);
+  var b = this.pmd.bones[index];
 
-  var p = this.vec3.set(this.pmd.bones[index].position, motion.p);
   if(this.pmd.bones[index].parentIndex === 0xFFFF) {
-    this.vec3.add(p, t, p),
-    this.vec3.set(p, this.motions[index].p);
-    this.quat4.set(r, this.motions[index].r);
-    this.motions[index].done = true;
-    return this.motions[index];
+    this.vec3.add(b.position, m.location, motion.p);
+    this.vec3.add(motion.p, this.basePosition, motion.p);
+    this.quat4.set(m.rotation, motion.r);
   } else {
-    var parentIndex = this.pmd.bones[index].parentIndex;
-    var parentMotion = this._getBoneMotion(parentIndex);
-    this.quat4.multiply(parentMotion.r, r, r);
-    this.vec3.subtract(p, this.pmd.bones[parentIndex].position, p);
-    this.vec3.add(p, t, p);
-    this.vec3.rotateByQuat4(p, parentMotion.r, p);
-    this.vec3.add(p, parentMotion.p, p);
-    this.vec3.set(p, this.motions[index].p);
-    this.quat4.set(r, this.motions[index].r);
-    this.motions[index].done = true;
-    return this.motions[index];
+    var parentMotion = this._getBoneMotion(b.parentIndex);
+    var parentBone = this.pmd.bones[b.parentIndex];
+    this.quat4.multiply(parentMotion.r, m.rotation, motion.r);
+    this.vec3.subtract(b.position, parentBone.position, motion.p);
+    this.vec3.add(motion.p, m.location, motion.p);
+    this.vec3.rotateByQuat4(motion.p, parentMotion.r, motion.p);
+    this.vec3.add(motion.p, parentMotion.p, motion.p);
   }
+  motion.done = true;
 };
 
 
