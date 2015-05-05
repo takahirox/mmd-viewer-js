@@ -60,6 +60,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
 \
   uniform mat4 uMVMatrix;\
   uniform mat4 uPMatrix;\
+  uniform mat4 uMVPMatrix;\
   uniform mat3 uNMatrix;\
   uniform vec3 uLightColor;\
   uniform vec3 uLightDirection;\
@@ -171,7 +172,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
       norm = normalize(aVertexNormal);\
     }\
 \
-    gl_Position = uPMatrix * uMVMatrix * vec4(pos, 1.0);\
+    gl_Position = uMVPMatrix * vec4(pos, 1.0);\
 \
     if(uShadowGeneration) {\
       vShadowDepth = gl_Position;\
@@ -221,7 +222,7 @@ Layer.prototype._SHADERS['shader-vs'].src = '\
     if(uEdge) {\
       const float thickness = 0.003;\
       vec4 epos = gl_Position;\
-      vec4 epos2 = uPMatrix * uMVMatrix * vec4(pos + norm, 1.0);\
+      vec4 epos2 = uMVPMatrix * vec4(pos + norm, 1.0);\
       vec4 enorm = normalize(epos2 - epos);\
       gl_Position = epos + enorm * thickness * aVertexEdge * epos.w;\
     }\
@@ -437,6 +438,8 @@ Layer.prototype._initShader = function(gl) {
     gl.getUniformLocation(shader, 'uPMatrix');
   shader.mvMatrixUniform =
     gl.getUniformLocation(shader, 'uMVMatrix');
+  shader.mvpMatrixUniform =
+    gl.getUniformLocation(shader, 'uMVPMatrix');
   shader.nMatrixUniform =
     gl.getUniformLocation(shader, 'uNMatrix');
 
@@ -528,6 +531,7 @@ Layer.prototype.setMatrixUniforms = function(gl) {
   gl.uniformMatrix4fv(this.shader.pMatrixUniform, false, this.pMatrix);
   gl.uniformMatrix4fv(this.shader.mvMatrixUniform, false, this.mvMatrix);
   this.mat4.multiply(this.pMatrix, this.mvMatrix, this.mvpMatrix);
+  gl.uniformMatrix4fv(this.shader.mvpMatrixUniform, false, this.mvpMatrix);
 
   var nMat = mat3.create();
   mat4.toInverseMat3(this.mvMatrix, nMat);
