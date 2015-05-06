@@ -398,7 +398,7 @@ PMDModelView.prototype.skinningOneBone = function(b) {
   var m = this._getBoneMotion(b.id);
   var v = b.posFromBone;
   var vd = [0, 0, 0];
-  this.vec3.rotateByQuat4(v, m.r, vd);
+  this.quat4.multiplyVec3(m.r, v, vd);
   this.vec3.add(vd, m.p, vd);
   return vd;
 };
@@ -415,7 +415,7 @@ PMDModelView.prototype._skinning = function() {
     var b1 = this.pmd.bones[b1Num];
     var m1 = this._getBoneMotion(b1Num);
     var v1 = this.posFromBone1[i];
-    this.vec3.rotateByQuat4(v1, m1.r, vd1);
+    this.quat4.multiplyVec3(m1.r, v1, vd1);
     this.vec3.add(vd1, m1.p, vd1);
 
     var index = i * this._V_ITEM_SIZE;
@@ -428,7 +428,7 @@ PMDModelView.prototype._skinning = function() {
       var b2 = this.pmd.bones[b2Num];
       var m2 = this._getBoneMotion(b2Num);
       var v2 = this.posFromBone2[i];
-      this.vec3.rotateByQuat4(v2, m2.r, vd2);
+      this.quat4.multiplyVec3(m2.r, v2, vd2);
       this.vec3.add(vd2, m2.p, vd2);
 
       var bw1 = v.boneWeightFloat1;
@@ -786,25 +786,6 @@ PMDModelView.prototype._moveBone = function(dframe) {
 };
 
 
-/**
- * copied from MMD.js so far
- */
-vec3.rotateByQuat4 = function(vec, quat, dest) {
-  if(dest === undefined) {
-    dest = vec;
-  }
-
-  if(dest[0] === 0 && dest[1] === 0 && dest[2] === 0)
-    return dest;
-
-  quat4.multiplyVec3(quat, vec, dest);
-
-  return vec3.set(dest,
-                  quat4.multiply([ dest[0],  dest[1],  dest[2],       0],
-                                 [-quat[0], -quat[1], -quat[2], quat[3]]));
-};
-
-
 // TODO: move generic place
 vec3.clear = function(v) {
   v[0] = 0;
@@ -853,7 +834,7 @@ PMDModelView.prototype._resolveFK = function(motion, index) {
     this.quat4.multiply(parentMotion.r, m.rotation, motion.r);
     this.vec3.subtract(b.position, parentBone.position, motion.p);
     this.vec3.add(motion.p, m.location, motion.p);
-    this.vec3.rotateByQuat4(motion.p, parentMotion.r, motion.p);
+    this.quat4.multiplyVec3(parentMotion.r, motion.p, motion.p);
     this.vec3.add(motion.p, parentMotion.p, motion.p);
   }
   motion.done = true;
@@ -865,79 +846,81 @@ PMDModelView.prototype._resolveFK = function(motion, index) {
  */
 PMDModelView.prototype._resolveIK = function() {
   var axis = this.vec3.create();
-  var tbv = this.vec3.create(), ikv = this.vec3.create();
-  var tmpQ = this.quat4.create(), tmpR = this.quat4.create();
+  var tbv = this.vec3.create();
+  var ikv = this.vec3.create();
+  var tmpQ = this.quat4.create();
+  var tmpR = this.quat4.create();
 
   for(var i = 0; i < this.pmd.ikCount; i++) {
     var ik = this.pmd.iks[i];
     var ikb = this.pmd.bones[ik.index];
     var tb = this.pmd.bones[ik.targetBoneIndex];
+    var tpb = this.pmd.bones[tb.parentIndex]
     var ikm = this._getBoneMotion(ik.index);
     var tbm = this._getBoneMotion(ik.targetBoneIndex);
     var iterations = ik.iteration;
     var chainLength = ik.chainLength;
 
-    var minLength = 0.1 * this.vec3.length(
-                      this.vec3.subtract(
-                        tb.position,
-                        this.pmd.bones[tb.parentIndex].position,
-                        axis));
+    this.vec3.subtract(tb.position, tpb.position, axis);
+    var minLength = 0.1 * this.vec3.length(axis);
 
     for(var j = 0; j < iterations; j++) {
-      if(minLength > this.vec3.length(this.vec3.subtract(tbm.p, ikm.p, axis))) {
+      this.vec3.subtract(tbm.p, ikm.p, axis);
+      if(minLength > this.vec3.length(axis)) {
         break;
       }
+
       for(var k = 0; k < chainLength; k++) {
         var bn = ik.childBoneIndices[k];
         var cb = this.pmd.bones[bn];
         var cbm = this._getBoneMotion(bn);
         tbm = this._getBoneMotion(ik.targetBoneIndex);
 
-        var tbvl, ikvl, axisLen, sinTheta, theta;
         this.vec3.subtract(tbm.p, cbm.p, tbv);
-        tbvl = this.vec3.length(tbv);
         this.vec3.subtract(ikm.p, cbm.p, ikv);
-        ikvl = this.vec3.length(ikv);
         this.vec3.cross(tbv, ikv, axis);
-        axisLen = this.vec3.length(axis);
-        sinTheta = axisLen / ikvl / tbvl;
+        var tbvl = this.vec3.length(tbv);
+        var ikvl = this.vec3.length(ikv);
+        var axisLen = this.vec3.length(axis);
+        var sinTheta = axisLen / ikvl / tbvl;
 
-        if(tbvl < minLength || ikvl < minLength)
+        // Note: somehow tbm.p can be NaN and make sinTheta Nan.
+        // TODO: fix this problem because isNaN not so light function.
+        if(isNaN(sinTheta)) {
           continue;
+        }
 
-        if(sinTheta < 0.001)
+        if(tbvl < minLength || ikvl < minLength || sinTheta < 0.001)
           continue;
 
         var maxangle = (k+1) * ik.limitation * 4;
 
-        theta = this.Math.asin(sinTheta);
+        var theta = this.Math.asin(sinTheta);
         if(this.vec3.dot(tbv, ikv) < 0) {
           theta = 3.141592653589793 - theta;
         }
         if(theta > maxangle)
           theta = maxangle;
 
-        var q = this.quat4.set(this.vec3.scale(axis,
-                                            this.Math.sin(theta/2) / axisLen,
-                                            null),
-                               tmpQ);
-        q[3] = this.Math.cos(theta / 2);
+        this.vec3.scale(axis, this.Math.sin(theta/2) / axisLen, axis);
+        this.vec3.set(axis, tmpQ);
+        tmpQ[3] = this.Math.cos(theta / 2);
         var parentRotation = this._getBoneMotion(cb.parentIndex).r;
-        var r = this.quat4.inverse(parentRotation, tmpR);
-        this.quat4.multiply(this.quat4.multiply(r, q, null), cbm.r, r);
+        this.quat4.inverse(parentRotation, tmpR);
+        this.quat4.multiply(tmpR, tmpQ, tmpR)
+        this.quat4.multiply(tmpR, cbm.r, tmpR);
 
         if(this.pmd.bones[bn].isKnee()) {
-          var c = r[3];
+          var c = tmpR[3] > 1.0 ? 1.0 : tmpR[3]; // Note: Not to be NaN
           // TODO: is this negative x right?
-          this.quat4.set([-this.Math.sqrt(1 - c * c), 0, 0, c], r);
-//          this.quat4.inverse(this._getBoneMotion(bn).r, q);
-          this.quat4.inverse(cbm.r, q);
-          this.quat4.multiply(r, q, q);
-          this.quat4.multiply(parentRotation, q, q);
+          this.quat4.set([-this.Math.sqrt(1 - c * c), 0, 0, c], tmpR);
+          this.quat4.inverse(cbm.r, tmpQ);
+          this.quat4.multiply(tmpR, tmpQ, tmpQ);
+          this.quat4.multiply(parentRotation, tmpQ, tmpQ);
         }
 
-        this.quat4.normalize(r, this.vmd.getBoneMotion(cb).rotation);
-        this.quat4.multiply(q, cbm.r, cbm.r);
+        this.quat4.normalize(tmpR, this.vmd.getBoneMotion(cb).rotation);
+        this.quat4.multiply(tmpQ, cbm.r, cbm.r);
         this.motions[ik.targetBoneIndex].done = false;
         for(var l = 0; l <= k; l++) {
           this.motions[ik.childBoneIndices[l]].done = false;

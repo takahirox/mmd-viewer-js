@@ -890,13 +890,6 @@ PhysicsRigidBody.prototype._setTransformFromBone = function(motions) {
     m = {p: [0, 0, 0], r: [0, 0, 0, 1]}
   }
 
-  // TODO: temporal workaround
-  //       IK solver has a bug which passes NaN so checking here so far.
-  //       I should fix it and remove this if bc isNaN is kinda heavy.
-  if(isNaN(m.p[0]) || isNaN(m.p[1]) || isNaN(m.p[2]) ||
-     isNaN(m.r[0]) || isNaN(m.r[1]) || isNaN(m.r[2]) || isNaN(m.r[3]))
-    return;
-
   var tr = this.allocTr();
   this._setOriginArray3Left(tr, m.p);
   this._setBasisArray4Left(tr, m.r);
@@ -915,13 +908,6 @@ PhysicsRigidBody.prototype._setTransformFromBone = function(motions) {
 
 PhysicsRigidBody.prototype._setPositionFromBone = function(motions) {
   var m = motions[this.body.boneIndex];
-
-  // TODO: temporal workaround
-  //       IK solver has a bug which passes NaN so checking here so far.
-  //       I should fix it and remove this if bc isNaN is kinda heavy.
-  if(isNaN(m.p[0]) || isNaN(m.p[1]) || isNaN(m.p[2]) ||
-     isNaN(m.r[0]) || isNaN(m.r[1]) || isNaN(m.r[2]) || isNaN(m.r[3]))
-    return;
 
   var tr = this.allocTr();
   this._setOriginArray3Left(tr, m.p);
