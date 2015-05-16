@@ -613,7 +613,7 @@ PMDModelView.prototype.draw = function() {
     // TODO: temporal
     if(this.view.edgeType == this.view._EDGE_ON && m.color[3] == 1.0) {
       gl.enable(gl.CULL_FACE);
-      gl.cullFace(gl.BACK);
+      gl.cullFace(gl.FRONT);
     } else {
       gl.disable(gl.CULL_FACE);
       gl.cullFace(gl.FRONT);
@@ -663,7 +663,7 @@ PMDModelView.prototype.drawEdge = function() {
 
   gl.uniform1i(shader.edgeUniform, 1);
   gl.uniform1i(shader.useToonUniform, 0);
-  gl.cullFace(gl.FRONT);
+  gl.cullFace(gl.BACK);
   gl.disable(gl.BLEND);
   gl.enable(gl.CULL_FACE);
 

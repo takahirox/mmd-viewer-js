@@ -308,6 +308,7 @@ PMDView.prototype.moveCameraQuaternion = function(q) {
 
 
 PMDView.prototype.moveCameraQuaternionByXY = function(dx, dy) {
+  dx = -dx;
   dy = -dy;
 
   var length = this.Math.sqrt(dx * dx + dy * dy);
@@ -327,7 +328,6 @@ PMDView.prototype.moveCameraQuaternionByXY = function(dx, dy) {
 
 
 PMDView.prototype.moveCameraTranslation = function(dx, dy) {
-  dx = -dx;
   dy = -dy;
 
   this.cameraTranslation[0] += dx * 50;
