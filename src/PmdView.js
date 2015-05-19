@@ -52,7 +52,7 @@ function PMDView(layer) {
   this.setSphereMapType(this._SPHERE_MAP_ON);
   this.setShadowMappingType(this._SHADOW_MAPPING_OFF);
   this.setEdgeType(this._EDGE_ON);
-  this.setRunType(this._RUN_FRAME_ORIENTED);
+  this.setRunType(this._RUN_REALTIME_ORIENTED);
   this.setStageType(this._STAGE_2);
   this.setEffectFlag(this._EFFECT_OFF);
   this.setAudioType(this._AUDIO_ON);

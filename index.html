@@ -257,8 +257,11 @@ var __runTypes = [
   {name: 'Real Time Oriented',
    value: PMDView._RUN_REALTIME_ORIENTED,
    selected: true},
+/*
+  // disabled because of Audio.currentTime is second precision.
   {name: 'Audio Oriented',
    value: PMDView._RUN_AUDIO_ORIENTED},
+*/
 ];
 
 
@@ -511,8 +514,9 @@ var __videoGenerationCheckboxState = function() {
 var __audioSelectedState = function() {
   if(__audioSelect.options[1].selected) {
     __runTypeSelect.options[0].selected = false;
-    __runTypeSelect.options[1].selected = false;
-    __runTypeSelect.options[2].selected = true;
+//    __runTypeSelect.options[1].selected = false;
+//    __runTypeSelect.options[2].selected = true;
+    __runTypeSelect.options[1].selected = true;
     __runTypeSelect.disabled = true;
   } else {
     if(! __videoGenerationCheckbox.checked)
