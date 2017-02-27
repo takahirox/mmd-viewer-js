@@ -8,7 +8,7 @@ function PMDModelView(layer, pmd, pmdView) {
   this.vmd = null;
   this.audio = null;
 
-  this.vtf = layer.generateTexture();
+  this.vtf = layer.generateTexture(document.createElement('img'));
   this.vtfWidth = layer.calculateVTFWidth(pmd.boneCount*7);
   var buffer = new ArrayBuffer(this.vtfWidth * this.vtfWidth * 4);
   this.vtfUint8Array = new Uint8Array(buffer);
